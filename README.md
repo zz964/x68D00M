@@ -318,31 +318,42 @@ Executables are created in the source directory (same directory as makefile.x68k
 Recommended 060turbo.sys settings in CONFIG.SYS.  
 I use these for both xm6g and a real 060turbo:
 
-  DEVICE = \060SYS\060turbo.sys -cm1 -lt -dv -ss -xm
+```
+DEVICE = \060SYS\060turbo.sys -cm1 -lt -dv -ss -xm
+```
 
 Key flags:
-  -cm1    Copy-back cache mode. Fastest cache mode for rendering.
-  -lt     Place MMU address translation table in local RAM. Speeds up
-          every TLB miss by avoiding the slow system bus. Significant
-          FPS improvement for Doom.
-  -dv     Device driver buffer for local memory access. Required by -xm.
-  -ss     Software SCSI transfers for local memory. Required by -xm.  
-  -xm     Enable extended memory (HIMEM). Doom allocates its zone,  
-          framebuffers, and lookup tables in local RAM for fast access.  
-          Requires -dv and -ss.
+
+
+| Flag | Description                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -cm1 | Copy-back cache mode. Fastest cache mode for rendering.                                                                                           |
+| -lt  | Place MMU address translation table in local RAM. Speeds up every TLB miss by avoiding the slow system bus. Significant FPS improvement for Doom. |
+| -dv  | Device driver buffer for local memory access. Required by -xm.                                                                                    |
+| -ss  | Software SCSI transfers for local memory. Required by -xm.                                                                                        |
+| -xm  | Enable extended memory (HIMEM). Doom allocates its zone, framebuffers, and lookup tables in local RAM for fast access. Requires -dv and -ss.      |
+
 
 ## PhantomX Configuration
 
 For PhantomX users, recommended phantomx.ini settings:
 
-  EMUMODEL    030  
-  HIMEM       64 or 128
+
+| Setting  | Value     |
+| -------- | --------- |
+| EMUMODEL | 030       |
+| HIMEM    | 64 or 128 |
+
 
 Use doom.x (the 68030 build). PhantomX runs significantly faster
 in 030 mode than 060 mode:
 
-  030 mode (400MHz equiv): doom.x    ~20 FPS
-  060 mode (120MHz equiv): doom060.x ~16 FPS
+
+| Mode                    | Executable | FPS |
+| ----------------------- | ---------- | --- |
+| 030 mode (400MHz equiv) | doom.x     | ~20 |
+| 060 mode (120MHz equiv) | doom060.x  | ~16 |
+
 
 The 68030 emulation runs at a much higher equivalent clock.  
 The 3x clock advantage outweighs the lack of FPU.
@@ -362,8 +373,8 @@ out, either.  I spent a long time looking but I can't find anything.
 
 ## License
 
-This port is based on the Doom source code released by id Software
-under the GNU General Public License v2. See DOOMLIC.TXT for details.
+This port is based on the Doom source code released by id Software  
+under the GNU General Public License v2. See LICENSE file for details.
 
 The port-specific code (X68000 hardware interface, optimized renderers,
 sound system, video modes) is also released under GPL v2.
@@ -373,9 +384,9 @@ You must own a licensed copy of Doom to use its WAD data files.
 
 ## Credits
 
-Original game:        id Software (John Carmack, John Romero, et al.)
-Original X68000 port: neozeed and neko68k
-x68D00M port:         x68D00M team
+Original game:        id Software (John Carmack, John Romero, et al.)  
+Original X68000 port: neozeed and neko68k  
+x68D00M port:         zz964
 
 ## Acknowledgements
 
