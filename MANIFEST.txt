@@ -7,23 +7,20 @@ File Manifest
 
 BUILD SYSTEM
   makefile.x68k              Main build makefile (68060 and 68030 targets)
-  Makefile                   Original Linux makefile (reference only)
-  xmakefile                  Original X68000 makefile (reference only)
+  .gitignore                 Git ignore rules for build artifacts
 
 
 X68000 PORT - Core
-  i_main.c                   Entry point, supervisor mode setup
-  i_system.c / .h            System interface: timing, memory, CPU detection
-  i_video.c / .h             Video: CRTC mode setup, GVRAM blitting, keyboard
-  i_sound.c / .h             Sound: ADPCM, Mercury Unit PCM8PP, SFX conversion
+  i_main.c                   Entry point, supervisor mode, CPU detection
+  i_system.c / .h            System interface: timing, memory, PhantomX detection
+  i_video.c / .h             Video: CRTC modes, GVRAM blit, vsync, keyboard, mouse
+  i_sound.c / .h             Sound: ADPCM, Mercury Unit PCM8PP, SFX cache
   i_net.c / .h               Network stub
   i_prof_timer.c / .h        High-resolution profiling timer
-  display.c / .h             Legacy display init (retained from original port)
   serial.c / .h              Serial debug output
 
 X68000 PORT - Hardware Abstraction
   crtc.c / .h                CRTC register definitions and pointers
-  cynthia.c / .h             Cynthia (sprite/BG controller) registers
   vc.c / .h                  Video controller registers
   mfp.c / .h                 MFP (Multi-Function Peripheral) registers
   tvram.c / .h               Text VRAM access
@@ -31,30 +28,30 @@ X68000 PORT - Hardware Abstraction
   dmac.h                     HD63450 DMA controller register definitions
 
 X68000 PORT - Optimized Rendering
-  r_draw_asm.S               Hand-optimized 68060 assembly:
+  r_draw_asm.S               Hand-optimized 68060/68030 assembly:
                                R_DrawColumn (3-pixel unrolled, BFEXTU)
                                R_DrawSpan (ADDX+SWAP interleave)
                                FixedMul/FixedDiv (FPU, 68060 only)
                                R_MapPlane/R_DrawPlanes (inline FPU, 68060 only)
                                I_BlitBlock, I_BlitCopy16 (GVRAM blitters)
-                               I_CachePushAll (68060 cache flush)
 
 X68000 PORT - Music
   opm_music.c / .h           YM2151 OPL2-to-OPM patch conversion and playback
-  mus_player.c / .h          MUS format parser, OPM timer-driven ISR player
+  mus_player.c / .h          MUS format parser, OPM timer-driven ISR player,
+                               crash watchdog (writes CRASH.TXT on hang)
   midi_out.c / .h            External MIDI output (YM3802 UART)
   gm_opm_patches.h           Embedded GM patch bank (FB-01 factory presets)
-  gm.opm                     GM patch bank in VOPM text format (reference)
 
 X68000 PORT - Sound Effects
   adpcm_enc.c / .h           OKI ADPCM encoder for SFX conversion
 
 X68000 PORT - Fixed Point
-  m_fixed.c / .h             FixedMul/FixedDiv: C (68030) or asm FPU (68060)
+  m_fixed.c / .h             FixedMul/FixedDiv: C (68030) or inline FPU (68060)
+  m_fixed030.S               68030 MULS.L/DIVSL.L FixedMul/FixedDiv (reference)
   mfixed000.S                68000 fixed-point asm (reference, unused)
   mfixed020.S                68020 fixed-point asm (reference, unused)
 
-X68000 PORT - Profiling
+X68000 PORT - Profiling & Diagnostics
   doom_perf.c / .h           Per-frame performance counters
   doom_log.c / .h            File-based debug logging
 
@@ -103,7 +100,7 @@ DOOM ENGINE - Game Logic
 
 DOOM ENGINE - UI
   m_menu.c / .h              Menu system (options, sound, video mode selector)
-  m_misc.c / .h              Config file read/write
+  m_misc.c / .h              Config file read/write (doomrc)
   m_cheat.c / .h             Cheat code detection
   m_argv.c / .h              Command line argument parsing
   m_bbox.c / .h              Bounding box utilities
@@ -142,23 +139,8 @@ DOOM ENGINE - Infrastructure
   dstrings.c / .h            Game strings
 
 DOCUMENTATION
+  README.md                        Project documentation and setup guide
+  LICENSE                          GNU GPL v2 (Doom source code license)
+  MANIFEST.txt                     This file
   docs/x68000_crtc_reference.txt   CRTC register reference (from Inside X68000)
-  DOOMLIC.TXT                      Original Doom GPL license
-  README                           Original Doom readme
-  README.asm                       Assembly notes
-  README.b                         Build notes
-  README.book                      Book references
-  README.gl                        OpenGL notes (reference only)
-  README.sound                     Sound system notes
-  ChangeLog                        Original changelog
-  TODO                             Original todo list
-  FILES / FILES2                   Original file lists
-
-MISC
-  Entries / Repository / Root      CVS metadata (from original source)
-  uncrusty.cmd                     Code formatting script
-  linux/gar.cmd                    Linux linker script
-  linux/link.cmd                   Linux linker script
-  x68k/gar.cmd                     X68000 linker script
-  x68k/link.cmd                    X68000 linker script
-  xnative                          Build flag file
+  docs/pcm_driver_stop_test_results.txt  PCM8A/PCM8PP stop mechanism test results
