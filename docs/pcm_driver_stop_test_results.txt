@@ -1,0 +1,82 @@
+PCM Driver Stop Mechanism Test Results
+======================================
+Date: 2026-03-28
+Test program: pcm8a_test.c (pcm8test.x)
+Tone: 3-second ADPCM square wave, stop attempted at 500ms
+
+Legend:
+  STOPPED = tone silenced at 500ms (desired behavior)
+  FULL    = tone played all 3 seconds (stop had no effect)
+  NO PLAY = sound did not start at all
+
+======================================================================
+PCM8A v1.02
+======================================================================
+
+PART A: Sound started via IOCS ADPCMOUT
+  A1  Full play (baseline)          -- FULL (expected)
+  A2  ADPCMMOD(0)                   -- FULL
+  A3  Trap #2 $00B0 (stop ch 0)    -- FULL
+  A4  Trap #2 $0100 (reset all)    -- FULL
+  A5  Trap #2 $0103 (kill driver)  -- STOPPED
+
+PART B: Sound started via trap #2 $0000 (direct channel 0)
+  B1  Full play (baseline)          -- NO PLAY
+  B2-B5                             -- NO PLAY (can't test, nothing playing)
+
+PART C: Mixed
+  C1  Trap $0000 + stop ch 0-7     -- NO PLAY
+  C2  Two ADPCMOUT + $0103 kill    -- STOPPED
+
+Conclusion: PCM8A can only stop ADPCMOUT sounds by killing the entire
+driver ($0103). Per-channel stops and resets have no effect. Trap #2
+direct channel start ($000x) does not work at all.
+
+======================================================================
+PCM8PP (Mercury Unit driver)
+======================================================================
+
+PART A: Sound started via IOCS ADPCMOUT
+  A1  Full play (baseline)          -- FULL (expected)
+  A2  ADPCMMOD(0)                   -- STOPPED
+  A3  Trap #2 $00B0 (stop ch 0)    -- FULL
+  A4  Trap #2 $0100 (reset all)    -- STOPPED
+  A5  Trap #2 $0103 (kill driver)  -- FULL (opposite of PCM8A!)
+
+PART B: Sound started via trap #2 $0000 (direct channel 0)
+  B1  Full play (baseline)          -- FULL (plays, quiet volume)
+  B2  ADPCMMOD(0)                   -- STOPPED (quiet)
+  B3  Trap #2 $00B0 (stop ch 0)    -- FULL (quiet)
+  B4  Trap #2 $0100 (reset all)    -- STOPPED (quiet)
+  B5  Trap #2 $0103 (kill driver)  -- FULL (quiet)
+
+PART C: Mixed
+  C1  Trap $0000 + stop ch 0-7     -- FULL (quiet)
+  C2  Two ADPCMOUT + $0103 kill    -- FULL
+
+Conclusion: PCM8PP responds to ADPCMMOD(0) and $0100 (reset) for both
+ADPCMOUT and trap #2-started sounds. Per-channel stop ($00Bx) does NOT
+work. Kill ($0103) does NOT work (opposite of PCM8A). Direct channel
+start ($000x) works but at reduced volume (different d1 parameter
+format expected).
+
+======================================================================
+Summary: What actually stops sounds
+======================================================================
+
+                    | PCM8A  | PCM8PP
+  ------------------+--------+--------
+  ADPCMMOD(0)       |  no    |  YES
+  $00Bx (per-ch)    |  no    |  no
+  $0100 (reset)     |  no    |  YES
+  $0103 (kill)      |  YES   |  no
+
+The two drivers have OPPOSITE stop behavior. There is no single stop
+method that works on both.
+
+Recommended approach for Doom:
+  - Detect which driver is loaded
+  - PCM8A:  use $0103/$0104 (kill/reactivate) to stop sounds
+  - PCM8PP: use ADPCMMOD(0) to stop sounds
+  - Or: use each driver's native API (Mercury uses TRAP #2 with
+    per-channel volume, PCM8A uses IOCS ADPCMOUT interception)

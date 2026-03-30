@@ -1,0 +1,220 @@
+# Makefile for x68D00M using xdev68k cross-compiler
+# Usage (from WSL or MSYS2):
+#   export XDEV68K_DIR=/mnt/c/Doom_Source/xdev68k-main
+#   make -f makefile.x68k
+
+ifndef XDEV68K_DIR
+	$(error ERROR : XDEV68K_DIR is not defined.)
+endif
+
+.SUFFIXES:
+
+# TARGET: 060 (default) or 030. Two clean builds, no runtime detection.
+#   make -f makefile.x68k              -> doom060.x (68060)
+#   make -f makefile.x68k TARGET=030   -> doom.x    (68030, default for most users)
+TARGET ?= 060
+
+ifeq ($(TARGET),030)
+  CPU = 68030
+  LIB_CPU = m68020
+else
+  CPU = 68060
+  LIB_CPU = m68060
+endif
+
+ATOMIC   = perl ${XDEV68K_DIR}/util/atomic.pl
+CC       = ${XDEV68K_DIR}/m68k-toolchain/bin/m68k-elf-gcc
+GAS2HAS  = perl ${XDEV68K_DIR}/util/x68k_gas2has.pl -cpu $(CPU) -inc doscall.inc -inc iocscall.inc
+RUN68    = $(ATOMIC) ${XDEV68K_DIR}/run68/run68
+HAS      = $(RUN68) ${XDEV68K_DIR}/x68k_bin/HAS060.X
+HLK      = $(RUN68) ${XDEV68K_DIR}/x68k_bin/hlk301.x
+
+ifeq ($(TARGET),030)
+  EXECUTABLE = doom.x
+else
+  EXECUTABLE = doom060.x
+endif
+
+INCLUDE_FLAGS = -I${XDEV68K_DIR}/include/xc -I${XDEV68K_DIR}/include/xdev68k
+
+CFLAGS = \
+	-m$(CPU) \
+	-O2 \
+	$(INCLUDE_FLAGS) \
+	-Dhuman68k \
+	-D__BIG_ENDIAN__ \
+	-DBIG_ENDIAN=4321 \
+	-DBYTE_ORDER=BIG_ENDIAN \
+	-Wno-builtin-declaration-mismatch \
+	-Wno-implicit-function-declaration \
+	-Wno-implicit-int \
+	-fcommon \
+	-fcall-used-d2 -fcall-used-a2 \
+	-finput-charset=cp932 -fexec-charset=cp932 \
+	-fverbose-asm \
+	-fomit-frame-pointer \
+	-msoft-float
+
+LIBS = \
+	${XDEV68K_DIR}/lib/xc/BASLIB.L \
+	${XDEV68K_DIR}/lib/xc/CLIB.L \
+	${XDEV68K_DIR}/lib/xc/DOSLIB.L \
+	${XDEV68K_DIR}/lib/xc/IOCSLIB.L \
+	${XDEV68K_DIR}/lib/xc/FLOATFNC.L \
+	${XDEV68K_DIR}/lib/m68k_elf/$(LIB_CPU)/libgcc.a \
+	${XDEV68K_DIR}/lib/m68k_elf/$(LIB_CPU)/libstdc++.a \
+
+INTERMEDIATE_DIR = _build/m$(CPU)
+
+# C sources — m_fixed.c replaces mfixed020.S (the old HAS assembly used GCC
+# runtime helper calling conventions from 1990s GCC that differ from modern
+# m68k-elf-gcc; the pure-C version is safe and lets GCC emit muls.l natively).
+C_SRCS = \
+	am_map.c \
+	m_fixed.c \
+	crtc.c \
+	doomdef.c \
+	doomstat.c \
+	dstrings.c \
+	d_items.c \
+	d_main.c \
+	d_net.c \
+	f_finale.c \
+	f_wipe.c \
+	g_game.c \
+	hu_lib.c \
+	hu_stuff.c \
+	info.c \
+	irq.c \
+	i_main.c \
+	i_net.c \
+	i_sound.c \
+	i_system.c \
+	i_video.c \
+	missing.c \
+	mfp.c \
+	m_argv.c \
+	m_bbox.c \
+	m_cheat.c \
+	m_menu.c \
+	m_misc.c \
+	m_random.c \
+	m_swap.c \
+	p_ceilng.c \
+	p_doors.c \
+	p_enemy.c \
+	p_floor.c \
+	p_inter.c \
+	p_lights.c \
+	p_map.c \
+	p_maputl.c \
+	p_mobj.c \
+	p_plats.c \
+	p_pspr.c \
+	p_saveg.c \
+	p_setup.c \
+	p_sight.c \
+	p_spec.c \
+	p_switch.c \
+	p_telept.c \
+	p_tick.c \
+	p_user.c \
+	r_bsp.c \
+	r_data.c \
+	r_draw.c \
+	r_main.c \
+	r_plane.c \
+	r_segs.c \
+	r_sky.c \
+	r_things.c \
+	serial.c \
+	sounds.c \
+	s_sound.c \
+	st_lib.c \
+	st_stuff.c \
+	tables.c \
+	tvram.c \
+	vc.c \
+	v_video.c \
+	w_wad.c \
+	wi_stuff.c \
+	z_zone.c \
+	doom_log.c \
+	doom_perf.c \
+	i_prof_timer.c \
+	adpcm_enc.c \
+	opm_music.c \
+	midi_out.c \
+	mus_player.c
+
+ASM_SRCS = r_draw_asm.S
+
+# R_DrawColumn/R_DrawSpan asm: 68030-safe (no FPU), used on both targets.
+CFLAGS += -DHAVE_ASM_RDRAW
+
+ifeq ($(TARGET),030)
+  # 68030: native MULS.L/DIVSL.L FixedMul/FixedDiv (inline asm in m_fixed.c),
+  # C plane renderer (R_MapPlane/R_DrawPlanes from r_plane.c)
+  CFLAGS += -DTARGET_68030
+else
+  # 68060: asm FPU FixedMul/FixedDiv/R_MapPlane/R_DrawPlanes
+  CFLAGS += -DTARGET_68060
+  CFLAGS += -DHAVE_ASM_PLANES
+endif
+# Enable file logging to doom_log.txt (remove to disable for release/perf testing)
+# CFLAGS += -DDOOM_LOG
+# Exclude .opm file loader to reduce binary size (saves ~1.5KB, may improve cache)
+CFLAGS += -DOPM_NO_FILE_LOADER
+
+OBJS = \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.o,$(C_SRCS))) \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.S,%.o,$(ASM_SRCS)))
+
+DEPS = $(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.d,$(C_SRCS)))
+
+HLK_LINK_LIST = $(INTERMEDIATE_DIR)/_lk_list.tmp
+
+all : $(EXECUTABLE)
+
+-include $(DEPS)
+
+clean :
+	rm -f $(EXECUTABLE)
+	rm -rf $(INTERMEDIATE_DIR)
+
+# Link — HLK cannot handle long paths, so libs are copied into the build dir
+# and linked via short relative paths (same pattern as BCC's makefile.x68).
+$(EXECUTABLE) : $(OBJS) $(LIBS)
+	mkdir -p $(INTERMEDIATE_DIR)
+	rm -f $(HLK_LINK_LIST)
+	@for FILENAME in $(OBJS); do \
+		echo $$FILENAME >> $(HLK_LINK_LIST); \
+	done
+	@for FILENAME in $(LIBS); do \
+		cp $$FILENAME $(INTERMEDIATE_DIR)/`basename $$FILENAME`; \
+		echo $(INTERMEDIATE_DIR)/`basename $$FILENAME` >> $(HLK_LINK_LIST); \
+	done
+	$(HLK) -i $(HLK_LINK_LIST) -o $(EXECUTABLE)
+
+# C sources: compile to GAS asm, convert to HAS format, assemble
+$(INTERMEDIATE_DIR)/%.o : %.c makefile.x68k
+	mkdir -p $(dir $(INTERMEDIATE_DIR)/$*.o)
+	$(CC) -S $(CFLAGS) -o $(INTERMEDIATE_DIR)/$*.m68k-gas.s \
+		-MT $(INTERMEDIATE_DIR)/$*.o -MD -MP -MF $(INTERMEDIATE_DIR)/$*.d $<
+	$(GAS2HAS) -i $(INTERMEDIATE_DIR)/$*.m68k-gas.s -o $(INTERMEDIATE_DIR)/$*.s
+	rm -f $(INTERMEDIATE_DIR)/$*.m68k-gas.s
+	$(HAS) -e -u -w0 $(INCLUDE_FLAGS) $(INTERMEDIATE_DIR)/$*.s -o $(INTERMEDIATE_DIR)/$*.o
+
+# HAS assembly sources: assembled directly (no GAS2HAS conversion needed)
+# For 68030 target: patch .cpu and HAVE_ASM_PLANES equate via sed.
+$(INTERMEDIATE_DIR)/%.o : %.S makefile.x68k
+	mkdir -p $(dir $(INTERMEDIATE_DIR)/$*.o)
+ifeq ($(TARGET),030)
+	sed -e 's/\.cpu.*68060/.cpu\t68030/' \
+	    -e 's/HAVE_ASM_PLANES.*equ.*1/HAVE_ASM_PLANES\tequ\t0/' \
+	    -e 's/TARGET_68060.*equ.*1/TARGET_68060\tequ\t0/' \
+	    $*.S > $(INTERMEDIATE_DIR)/$*_patched.S
+	$(HAS) -e -u -w0 $(INCLUDE_FLAGS) $(INTERMEDIATE_DIR)/$*_patched.S -o $(INTERMEDIATE_DIR)/$*.o
+else
+	$(HAS) -e -u -w0 $(INCLUDE_FLAGS) $*.S -o $(INTERMEDIATE_DIR)/$*.o
+endif

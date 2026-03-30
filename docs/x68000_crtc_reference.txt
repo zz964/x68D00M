@@ -1,0 +1,204 @@
+X68000 CRTC Reference
+=====================
+Source: "Inside X68000" book, Chapter 5 (Display Mode Control), pages 230-234
+
+
+5.1  CRTC Registers
+-------------------
+
+Registers R00-R08 and R20 control the display mode.
+R00-R07: CRT interface basic timing.
+R20: Color mode and VRAM structure switching.
+
+Figure 50: CRTC Register Map (R00-R08)
+
+  R00  $E80000  Horizontal Total (NOTE: must always be ODD, LSB=1)
+  R01  $E80002  Horizontal Sync End Position
+  R02  $E80004  Horizontal Display Start Position
+  R03  $E80006  Horizontal Display End Position
+  R04  $E80008  Vertical Total
+  R05  $E8000A  Vertical Sync End Position
+  R06  $E8000C  Vertical Display Start Position
+  R07  $E8000E  Vertical Display End Position
+  R08  $E80010  External Sync Horizontal Adjust
+
+All registers are 16-bit. R00-R03 use bits 7-0. R04-R07 use bits 9-0.
+
+
+5.01  CRT Interface Standard Timing (Figure 51)
+------------------------------------------------
+
+                          High Resolution    Standard Resolution
+                          (31.5 kHz)         (15.98 kHz)
+  ---------------------------------------------------------------
+  Sync Frequency:
+    Horizontal            31.5 kHz           15.98 kHz
+    Vertical              55.46 Hz           61.46 Hz
+
+  Data Display Period (1):
+    Horizontal            22.09 us           52.69 us
+    Vertical              16.25 ms           15.019 ms
+
+  Sync Period (2):
+    Horizontal            31.75 us           62.58 us
+    Vertical              18.03 ms           16.270 ms
+
+  Sync Pulse Width (3):
+    Horizontal            3.45 us            3.30 us
+    Vertical              0.191 ms           0.187 ms
+
+  Back Porch (4):
+    Horizontal            4.14 us            4.94 us
+    Vertical              1.111 ms           0.876 ms
+
+  Front Porch (5):
+    Horizontal            2.07 us            1.65 us
+    Vertical              0.476 ms           0.187 ms
+
+
+Standard CRTC Register Values (Mode Table)
+-------------------------------------------
+
+              High Resolution (31.5 kHz)          Standard Resolution (15.98 kHz)
+  Reg  Addr    768x512  512x512  512x256  256x256  512x512  512x256  256x256
+  ---  ------  -------  -------  -------  -------  -------  -------  -------
+  R00  $E80000  $89(137) $5B(91)  $5B(91)  $2D(45)  $4B(75)  $4B(75)  $25(37)
+  R01  $E80002  $0E(14)  $09(9)   $09(9)   $04(4)   $03(3)   $03(3)   $01(1)
+  R02  $E80004  $1C(28)  $11(17)  $11(17)  $06(6)   $05(5)   $05(5)   $00(0)
+  R03  $E80006  $7C(124) $51(81)  $51(81)  $26(38)  $45(69)  $45(69)  $20(32)
+  R04  $E80008  $237(567)$237(567)$237(567)$237(567)$103(259)$103(259)$103(259)
+  R05  $E8000A  $05(5)   $05(5)   $05(5)   $05(5)   $02(2)   $02(2)   $02(2)
+  R06  $E8000C  $28(40)  $28(40)  $28(40)  $28(40)  $10(16)  $10(16)  $10(16)
+  R07  $E8000E  $228(552)$228(552)$228(552)$228(552)$100(256)$100(256)$100(256)
+  R08  $E80010  $1B(27)  $1B(27)  $1B(27)  $1B(27)  $2C(44)  $2C(44)  $24(36)
+
+Note: Values in () are decimal. 31kHz modes use R04=$237 (interlaced).
+      15kHz modes use R04=$103 (non-interlaced).
+
+
+5.02  CRTC R20 Register ($E80028) - Figure 54
+----------------------------------------------
+
+  Bit 15-11:  (unused/reserved)
+  Bit 10:     SIZ - Screen size
+                0 = 512x512 dot mode
+                1 = 1024x1024 dot mode
+  Bit 9-8:    COL - Color mode
+                00 = 16 color
+                01 = 256 color
+                10 = undefined
+                11 = 65536 color
+  Bit 7-5:    (unused/reserved)
+  Bit 4:      HF - Horizontal frequency
+                0 = 15.98 kHz (standard resolution)
+                1 = 31.5 kHz (high resolution)
+  Bit 3-2:    VD - Vertical dots
+                00 = 256 vertical dots
+                01 = 512 vertical dots
+                10 = undefined
+                11 = undefined
+  Bit 1-0:    HD - Horizontal dots
+                00 = 256 horizontal dots
+                01 = 512 horizontal dots
+                10 = undefined
+                11 = 768 horizontal dots
+
+  IMPORTANT: Bits 8-10 (SIZ, COL) must be set to the same value
+  as the lower 3 bits of Video Controller R0 ($E82400).
+
+
+Register Value Formulas (Figure 53)
+------------------------------------
+
+  R00 = (H_sync_period x H_display_dots) / (data_display_period x 8) - 1
+  R01 = (H_sync_pulse_width x H_display_dots) / (data_display_period x 8) - 1
+  R02 = ((H_sync_pulse_width + H_back_porch) x H_display_dots) / (data_display_period x 8) - 5
+  R03 = ((H_sync_period + H_front_porch) x H_display_dots) / (data_display_period x 8) - 5
+  R04 = (V_sync_period / H_sync_period) - 1
+  R05 = (V_sync_pulse_width / H_sync_period) - 1
+  R06 = ((V_sync_pulse_width + V_back_porch) / H_sync_period) - 1
+  R07 = ((V_sync_period - V_front_porch) / H_sync_period) - 1
+
+
+5.2  Video Controller R0 ($E82400) - Figure 55
+-----------------------------------------------
+
+  Bit 2:      Screen size (0=512x512, 1=1024x1024)
+  Bit 1-0:    Color mode (00=16col, 01=256col, 10=undefined, 11=65536col)
+
+  Must match CRTC R20 bits 8-10.
+
+
+Dot Clocks (derived)
+--------------------
+
+  Master oscillator: 38.863636 MHz
+
+  512-dot modes:  38.863636 / 4 = 9.715909 MHz
+    Confirmed: 512 dots / 52.69 us = 9.717 MHz
+
+  256-dot modes:  38.863636 / 8 = 4.857955 MHz
+    Confirmed: 256 dots / 52.69 us = 4.858 MHz
+
+  768-dot modes:  38.863636 / 2 = 19.431818 MHz (or 69.552 MHz / 4?)
+
+
+Custom Mode: Doom 15kHz 256-color (WORKING - tested on real hardware)
+----------------------------------------------------------------------
+
+  Uses the EXACT standard 512x256 15kHz mode from the book, unmodified.
+  Game's 320x200 image is centered within the 512x240 visible area
+  using GVRAM scroll registers.
+
+  CRTC Registers (standard 512x256 @ 15kHz, no modifications):
+
+  R20 = $0101  (HD=01 512-dot, VD=00 256-vert PROGRESSIVE, HF=0 15kHz, COL=01 256-color)
+  R00 = $4B    (75)   htotal
+  R01 = $03    (3)    hsync end
+  R02 = $05    (5)    hdisp start
+  R03 = $45    (69)   hdisp end, active = 64 H-units = 512 pixels
+  R04 = $103   (259)  vtotal
+  R05 = $02    (2)    vsync end
+  R06 = $10    (16)   vdisp start
+  R07 = $100   (256)  vdisp end, active = 240 visible lines
+  R08 = $2C    (44)   horizontal adjust
+
+  vidcon_r0 = $01  (512x512, 256-color)
+  fH = 15.98 kHz, fV = 61.46 Hz
+
+  GVRAM Scroll (centering 320x200 in 512x240 visible area):
+
+  R12 = 416   (512 - 96)   GFX page 0 X scroll: center horizontally
+  R13 = 492   (512 - 20)   GFX page 0 Y scroll: center vertically
+  R14 = 416                 GFX page 1 X scroll: MUST match page 0
+  R15 = 492                 GFX page 1 Y scroll: MUST match page 0
+
+  Centering math:
+    H offset = (512 - 320) / 2 = 96 pixels -> scroll = 512 - 96 = 416
+    V offset = (240 - 200) / 2 = 20 pixels -> scroll = 512 - 20 = 492
+
+  Key lessons learned:
+
+  1. R20 VD bits (3:2) control interlace, not just GVRAM height.
+     VD=01 (512 vert) = INTERLACED at 15kHz.  VD=00 = PROGRESSIVE.
+
+  2. Narrowing R03 to reduce active pixels does NOT make the image
+     wider on the CRT.  The X68000 video circuit normalizes the
+     output to a fixed width based on the dot clock mode.  Only the
+     standard full-width active area (R03=$45 for 512-dot) fills
+     the screen properly.
+
+  3. In 256-color mode, GVRAM planes 0+1 combine into one layer.
+     Scroll registers for BOTH page 0 (R12/R13) AND page 1 (R14/R15)
+     must be set to the same values.  If only page 0 is scrolled,
+     the two 4-bit halves of each 8-bit pixel separate, creating
+     ghosted/shifted duplicate images in wrong colors.
+
+  4. GVRAM is physically 512x512 (SIZ=0) regardless of VD setting.
+     Scroll Y wraps at 512, NOT at 256.  Setting Y scroll to
+     256-20=236 shows rows 236-475 (missing the game at rows 0-199).
+     Correct value is 512-20=492 (shows rows 492-511 then 0-219).
+
+  5. R06/R07 must provide adequate front/back porch.  Setting
+     R06=$03, R07=$103 (trying to show all 256 lines in 259 total)
+     leaves no front porch and produces a black screen.

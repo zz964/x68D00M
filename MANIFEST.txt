@@ -1,0 +1,164 @@
+x68D00M - Doom for Sharp X68000
+================================
+
+File Manifest
+-------------
+
+
+BUILD SYSTEM
+  makefile.x68k              Main build makefile (68060 and 68030 targets)
+  Makefile                   Original Linux makefile (reference only)
+  xmakefile                  Original X68000 makefile (reference only)
+
+
+X68000 PORT - Core
+  i_main.c                   Entry point, supervisor mode setup
+  i_system.c / .h            System interface: timing, memory, CPU detection
+  i_video.c / .h             Video: CRTC mode setup, GVRAM blitting, keyboard
+  i_sound.c / .h             Sound: ADPCM, Mercury Unit PCM8PP, SFX conversion
+  i_net.c / .h               Network stub
+  i_prof_timer.c / .h        High-resolution profiling timer
+  display.c / .h             Legacy display init (retained from original port)
+  serial.c / .h              Serial debug output
+
+X68000 PORT - Hardware Abstraction
+  crtc.c / .h                CRTC register definitions and pointers
+  cynthia.c / .h             Cynthia (sprite/BG controller) registers
+  vc.c / .h                  Video controller registers
+  mfp.c / .h                 MFP (Multi-Function Peripheral) registers
+  tvram.c / .h               Text VRAM access
+  irq.c / .h                 IRQ/interrupt handler infrastructure
+  dmac.h                     HD63450 DMA controller register definitions
+
+X68000 PORT - Optimized Rendering
+  r_draw_asm.S               Hand-optimized 68060 assembly:
+                               R_DrawColumn (3-pixel unrolled, BFEXTU)
+                               R_DrawSpan (ADDX+SWAP interleave)
+                               FixedMul/FixedDiv (FPU, 68060 only)
+                               R_MapPlane/R_DrawPlanes (inline FPU, 68060 only)
+                               I_BlitBlock, I_BlitCopy16 (GVRAM blitters)
+                               I_CachePushAll (68060 cache flush)
+
+X68000 PORT - Music
+  opm_music.c / .h           YM2151 OPL2-to-OPM patch conversion and playback
+  mus_player.c / .h          MUS format parser, OPM timer-driven ISR player
+  midi_out.c / .h            External MIDI output (YM3802 UART)
+  gm_opm_patches.h           Embedded GM patch bank (FB-01 factory presets)
+  gm.opm                     GM patch bank in VOPM text format (reference)
+
+X68000 PORT - Sound Effects
+  adpcm_enc.c / .h           OKI ADPCM encoder for SFX conversion
+
+X68000 PORT - Fixed Point
+  m_fixed.c / .h             FixedMul/FixedDiv: C (68030) or asm FPU (68060)
+  mfixed000.S                68000 fixed-point asm (reference, unused)
+  mfixed020.S                68020 fixed-point asm (reference, unused)
+
+X68000 PORT - Profiling
+  doom_perf.c / .h           Per-frame performance counters
+  doom_log.c / .h            File-based debug logging
+
+X68000 PORT - Stubs
+  missing.c                  Stubs for missing libc functions
+  wmissing.c                 Additional missing function stubs
+  values.h                   Numeric limits for X68000 compiler
+
+
+DOOM ENGINE - Renderer
+  r_main.c / .h              Renderer main loop, view setup, BSP dispatch
+  r_bsp.c / .h               BSP tree traversal
+  r_segs.c / .h              Wall segment rendering
+  r_plane.c / .h             Floor/ceiling plane rendering
+  r_draw.c / .h              Column/span drawing (C versions)
+  r_things.c / .h            Sprite projection and rendering
+  r_sky.c / .h               Sky rendering
+  r_data.c / .h              Texture/flat/colormap loading
+  r_defs.h                   Renderer type definitions
+  r_local.h                  Renderer internal includes
+  r_state.h                  Renderer state variables
+  tables.c / .h              Trigonometric lookup tables
+
+DOOM ENGINE - Game Logic
+  g_game.c / .h              Game state machine, demo recording/playback
+  p_ceilng.c                 Ceiling movers
+  p_doors.c                  Door actions
+  p_enemy.c                  Monster AI
+  p_floor.c                  Floor movers
+  p_inter.c / .h             Player/thing interactions
+  p_lights.c                 Light effects
+  p_map.c                    Movement and collision
+  p_maputl.c                 Map utility functions
+  p_mobj.c / .h              Map object (thing) management
+  p_plats.c                  Platform movers
+  p_pspr.c / .h              Player weapon sprites
+  p_saveg.c / .h             Save/load game
+  p_setup.c / .h             Level loading
+  p_sight.c                  Line-of-sight checks
+  p_spec.c / .h              Special sector/line actions
+  p_switch.c                 Switch/button actions
+  p_telept.c                 Teleportation
+  p_tick.c / .h              Thinker/ticker system
+  p_user.c                   Player movement
+  p_local.h                  Game logic internal includes
+
+DOOM ENGINE - UI
+  m_menu.c / .h              Menu system (options, sound, video mode selector)
+  m_misc.c / .h              Config file read/write
+  m_cheat.c / .h             Cheat code detection
+  m_argv.c / .h              Command line argument parsing
+  m_bbox.c / .h              Bounding box utilities
+  m_random.c / .h            Random number generator
+  m_swap.c / .h              Byte swapping
+  hu_stuff.c / .h            Heads-up display
+  hu_lib.c / .h              HUD widget library
+  st_stuff.c / .h            Status bar
+  st_lib.c / .h              Status bar widget library
+  am_map.c / .h              Automap
+  f_finale.c / .h            Finale/cast screen
+  f_wipe.c / .h              Screen wipe effects
+  wi_stuff.c / .h            Intermission screen
+  v_video.c / .h             Video buffer operations (patches, fills)
+
+DOOM ENGINE - Infrastructure
+  d_main.c / .h              Startup, main loop, WAD detection
+  d_net.c / .h               Network/tic synchronization
+  w_wad.c / .h               WAD file loading
+  z_zone.c / .h              Zone memory allocator
+  s_sound.c / .h             Sound engine
+  info.c / .h                Thing/state/sprite tables
+  sounds.c / .h              Sound effect definitions
+  doomdef.c / .h             Global defines, version, screen dimensions
+  doomstat.c / .h            Global game state variables
+  doomdata.h                 WAD lump data structures
+  doomtype.h                 Type definitions
+  d_items.c / .h             Item definitions
+  d_player.h                 Player structure
+  d_event.h                  Event types
+  d_think.h                  Thinker structure
+  d_ticcmd.h                 Tic command structure
+  d_textur.h                 Texture structure
+  d_englsh.h                 English text strings
+  d_french.h                 French text strings
+  dstrings.c / .h            Game strings
+
+DOCUMENTATION
+  docs/x68000_crtc_reference.txt   CRTC register reference (from Inside X68000)
+  DOOMLIC.TXT                      Original Doom GPL license
+  README                           Original Doom readme
+  README.asm                       Assembly notes
+  README.b                         Build notes
+  README.book                      Book references
+  README.gl                        OpenGL notes (reference only)
+  README.sound                     Sound system notes
+  ChangeLog                        Original changelog
+  TODO                             Original todo list
+  FILES / FILES2                   Original file lists
+
+MISC
+  Entries / Repository / Root      CVS metadata (from original source)
+  uncrusty.cmd                     Code formatting script
+  linux/gar.cmd                    Linux linker script
+  linux/link.cmd                   Linux linker script
+  x68k/gar.cmd                     X68000 linker script
+  x68k/link.cmd                    X68000 linker script
+  xnative                          Build flag file
