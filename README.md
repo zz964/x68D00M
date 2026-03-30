@@ -79,7 +79,7 @@ In XM6g 68060 50mhz mode, I was able to get the 11fps from the original port up 
 ### Music
 
 - FM OPL2 emulation via YM2151 with GENMIDI patch conversion (poor quality, sorry)
-- FM General MIDI using embedded FB-01 factory patches (poor quality, sorry)
+- FM General MIDI emulation via YM2151 (poor quality, sorry)
 - External MIDI output via YM3802 UART (auto-detected) <- Use this!
 - Music mode selector in sound menu
 
