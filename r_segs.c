@@ -270,58 +270,63 @@ void R_RenderSegLoop (void)
 	int top;
 	int bottom;
 
-	/* Localize only the 4 hot variables that get reloaded from memory
-	 * after every colfunc() call: rw_x (loop counter), rw_scale
-	 * (used for lighting+iscale), topfrac, bottomfrac.
-	 * GCC reloads these because the function-pointer call to colfunc()
-	 * prevents alias analysis.  With only 4 locals, GCC can keep them
-	 * all in callee-saved registers without spilling.
-	 * The step values (topstep, bottomstep, rw_scalestep) are also
-	 * localized since they're used every iteration. */
+	/* Localize hot variables and use advancing pointers instead of
+	 * array[lx] indexing. On 68k, *(ptr)++ is cheaper than base[idx]
+	 * which requires index scaling on every access. */
 	int lx = rw_x;
 	fixed_t ltopfrac = topfrac;
 	fixed_t lbottomfrac = bottomfrac;
 	fixed_t lscale = rw_scale;
 
-	for (; lx < rw_stopx; lx++)
+	/* Advancing pointers for arrays indexed by lx */
+	short *cc = &ceilingclip[lx];   /* ceilingclip */
+	short *fc = &floorclip[lx];     /* floorclip */
+	byte  *cpt = &ceilingplane->top[lx];
+	byte  *cpb = &ceilingplane->bottom[lx];
+	byte  *fpt = &floorplane->top[lx];
+	byte  *fpb = &floorplane->bottom[lx];
+	angle_t *xvp = &xtoviewangle[lx];
+	short *mtc = maskedtexture ? &maskedtexturecol[lx] : NULL;
+
+	for (; lx < rw_stopx; lx++, cc++, fc++, cpt++, cpb++, fpt++, fpb++, xvp++)
 	{
 		/* mark floor / ceiling areas */
 		yl = (ltopfrac+HEIGHTUNIT-1)>>HEIGHTBITS;
 
 		/* no space above wall? */
-		if (yl < ceilingclip[lx]+1)
-			yl = ceilingclip[lx]+1;
+		if (yl < *cc+1)
+			yl = *cc+1;
 
 		if (markceiling)
 		{
-			top = ceilingclip[lx]+1;
+			top = *cc+1;
 			bottom = yl-1;
 
-			if (bottom >= floorclip[lx])
-				bottom = floorclip[lx]-1;
+			if (bottom >= *fc)
+				bottom = *fc-1;
 
 			if (top <= bottom)
 			{
-				ceilingplane->top[lx] = top;
-				ceilingplane->bottom[lx] = bottom;
+				*cpt = top;
+				*cpb = bottom;
 			}
 		}
 
 		yh = lbottomfrac>>HEIGHTBITS;
 
-		if (yh >= floorclip[lx])
-			yh = floorclip[lx]-1;
+		if (yh >= *fc)
+			yh = *fc-1;
 
 		if (markfloor)
 		{
 			top = yh+1;
-			bottom = floorclip[lx]-1;
-			if (top <= ceilingclip[lx])
-				top = ceilingclip[lx]+1;
+			bottom = *fc-1;
+			if (top <= *cc)
+				top = *cc+1;
 			if (top <= bottom)
 			{
-				floorplane->top[lx] = top;
-				floorplane->bottom[lx] = bottom;
+				*fpt = top;
+				*fpb = bottom;
 			}
 		}
 
@@ -329,7 +334,7 @@ void R_RenderSegLoop (void)
 		if (segtextured)
 		{
 			/* calculate texture offset */
-			angle = (rw_centerangle + xtoviewangle[lx])>>ANGLETOFINESHIFT;
+			angle = (rw_centerangle + *xvp)>>ANGLETOFINESHIFT;
 #ifdef TARGET_68060
 			/* Inline FPU FixedMul: 68060 FPU is native silicon, ~3-6c per op. */
 			{
@@ -370,8 +375,8 @@ void R_RenderSegLoop (void)
 			dc_texturemid = rw_midtexturemid;
 			dc_source = R_GetColumn_Fast(midtexture,texturecolumn);
 			colfunc ();
-			ceilingclip[lx] = viewheight;
-			floorclip[lx] = -1;
+			*cc = viewheight;
+			*fc = -1;
 		}
 		else
 		{
@@ -382,8 +387,8 @@ void R_RenderSegLoop (void)
 				mid = pixhigh>>HEIGHTBITS;
 				pixhigh += pixhighstep;
 
-				if (mid >= floorclip[lx])
-					mid = floorclip[lx]-1;
+				if (mid >= *fc)
+					mid = *fc-1;
 
 				if (mid >= yl)
 				{
@@ -392,16 +397,16 @@ void R_RenderSegLoop (void)
 					dc_texturemid = rw_toptexturemid;
 					dc_source = R_GetColumn_Fast(toptexture,texturecolumn);
 					colfunc ();
-					ceilingclip[lx] = mid;
+					*cc = mid;
 				}
 				else
-					ceilingclip[lx] = yl-1;
+					*cc = yl-1;
 			}
 			else
 			{
 				/* no top wall */
 				if (markceiling)
-					ceilingclip[lx] = yl-1;
+					*cc = yl-1;
 			}
 
 			if (bottomtexture)
@@ -411,8 +416,8 @@ void R_RenderSegLoop (void)
 				pixlow += pixlowstep;
 
 				/* no space above wall? */
-				if (mid <= ceilingclip[lx])
-					mid = ceilingclip[lx]+1;
+				if (mid <= *cc)
+					mid = *cc+1;
 
 				if (mid <= yh)
 				{
@@ -422,23 +427,23 @@ void R_RenderSegLoop (void)
 					dc_source = R_GetColumn_Fast(bottomtexture,
 					                             texturecolumn);
 					colfunc ();
-					floorclip[lx] = mid;
+					*fc = mid;
 				}
 				else
-					floorclip[lx] = yh+1;
+					*fc = yh+1;
 			}
 			else
 			{
 				/* no bottom wall */
 				if (markfloor)
-					floorclip[lx] = yh+1;
+					*fc = yh+1;
 			}
 
-			if (maskedtexture)
+			if (mtc)
 			{
 				/* save texturecol */
 				/*  for backdrawing of masked mid texture */
-				maskedtexturecol[lx] = texturecolumn;
+				*mtc++ = texturecolumn;
 			}
 		}
 
