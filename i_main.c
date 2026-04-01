@@ -93,7 +93,30 @@ int main(int argc, char** argv)
 			printf("Detected: %s\n", name);
 			printf("Please use doom.x (68030 build) instead.\n");
 			printf("To override this check: doom060.x -force\n");
-			return 1;
+			EXIT2(1);
+		}
+		/* CPU reports 68060+, but check if 060turbo.sys is loaded.
+		 * Without it, the 060SP exception handler is missing and
+		 * emulated FPU instructions will crash.
+		 * Check by reading the IOCS $F8 (HIMEM) vector. If
+		 * 060turbo.sys is loaded, it patches this vector to point
+		 * to its handler. Without the driver, the vector points to
+		 * a default stub (typically in ROM at $FExxxx or $FFxxxx)
+		 * or is zero. We check if it points below $01000000. */
+		{
+			volatile unsigned long *iocs_f8_vec =
+			    (volatile unsigned long *)(0x400 + 0xF8 * 4);
+			unsigned long vec_val = *iocs_f8_vec;
+			if (vec_val == 0 || vec_val >= 0x00F00000UL)
+			{
+				B_SUPER(b_ssp);
+				printf("ERROR: 060turbo.sys is not loaded.\n");
+				printf("doom060.x requires it for HIMEM and cache support.\n");
+				printf("Add to CONFIG.SYS:\n");
+				printf("  DEVICE = \\060SYS\\060turbo.sys -cm1 -lt -dv -ss -xm\n");
+				printf("To override: doom060.x -force\n");
+				EXIT2(1);
+			}
 		}
 	}
 #elif defined(TARGET_68030)
