@@ -38,9 +38,10 @@ on the original Doom source code released under the GNU GPL v2.
 
 1. IF you are using an 060turbo or xm6g in 060 mode, you need to set up the 060turbo.sys driver correctly. See below.
   Note that if you're using a PhantomX, you're better off in 030 mode.  Also see below.
-2. Copy doom.x (or doom060.x) and your WAD file to the same directory on your Sharp x68000.
-3. (Optional) If you want more than one sound effect to be playable at a time, run pcm8a, or if you have a Mercury Unit, run pcm8pp.
-4. From the Human68k command line:
+2. Make sure hiocs.x is running, as well as cache.x ON.  I run these from autoexec.bat
+3. Copy doom.x (or doom060.x) and your WAD file to the same directory on your Sharp x68000.
+4. (Optional) If you want more than one sound effect to be playable at a time, run pcm8a, or if you have a Mercury Unit, run pcm8pp.
+5. From the Human68k command line:
   doom.x  
    Or with a specific IWAD:  
      doom.x -iwad tnt.wad
@@ -396,5 +397,3 @@ BCC - doom8088_x68k, from which the 24kHz video mode idea originated.
 
 The Amiga Doom ports (ADoom by Peter McGavin, DoomAttack by Cosmos)
 provided valuable reference for optimizing Doom on 68k hardware.
-
-Claude - without whom this would have been a MUCH more difficult task.
