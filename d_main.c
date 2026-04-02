@@ -1250,6 +1250,14 @@ void D_DoomMain (void)
 	W_InitMultipleFiles (wadfiles);
 	dlog("W_InitMultipleFiles() done");
 
+	/* Detect Ultimate Doom: doom.wad with E4M1 lump = retail mode.
+	 * The filename-based detection sets doom.wad to registered,
+	 * but Ultimate Doom uses the same filename with 4 episodes. */
+	if (gamemode == registered && W_CheckNumForName("E4M1") >= 0)
+	{
+		gamemode = retail;
+		dlog("Upgraded to retail (Ultimate Doom) -- E4M1 found");
+	}
 
 	/* Check for -file in shareware */
 	if (modifiedgame)

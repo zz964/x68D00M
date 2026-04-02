@@ -393,8 +393,14 @@ int W_CheckNumForName (char* name)
 
 	while (lump_p-- != lumpinfo)
 	{
-		if ( *(int *)lump_p->name == v1
-		     && *(int *)&lump_p->name[4] == v2)
+		if ( lump_p->name[0] == name8.s[0]
+		     && lump_p->name[1] == name8.s[1]
+		     && lump_p->name[2] == name8.s[2]
+		     && lump_p->name[3] == name8.s[3]
+		     && lump_p->name[4] == name8.s[4]
+		     && lump_p->name[5] == name8.s[5]
+		     && lump_p->name[6] == name8.s[6]
+		     && lump_p->name[7] == name8.s[7])
 		{
 			return lump_p - lumpinfo;
 		}

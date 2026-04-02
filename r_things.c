@@ -180,7 +180,6 @@ void R_InitSpriteDefs (char** namelist)
 	char**      check;
 	int i;
 	int l;
-	int intname;
 	int frame;
 	int rotation;
 	int start;
@@ -204,20 +203,24 @@ void R_InitSpriteDefs (char** namelist)
 
 	/* scan all the lump names for each of the names, */
 	/*  noting the highest frame letter. */
-	/* Just compare 4 characters as ints */
+	/* Compare first 4 characters of sprite name.
+	 * Original code used *(int*) cast which can bus-error on 68060
+	 * if the struct field isn't 4-byte aligned. Compare bytes directly. */
 	for (i=0; i<numsprites; i++)
 	{
 		spritename = namelist[i];
 		memset (sprtemp,-1, sizeof(sprtemp));
 
 		maxframe = -1;
-		intname = *(int *)namelist[i];
 
 		/* scan the lumps, */
 		/*  filling in the frames for whatever is found */
 		for (l=start+1; l<end; l++)
 		{
-			if (*(int *)lumpinfo[l].name == intname)
+			if (lumpinfo[l].name[0] == spritename[0]
+			    && lumpinfo[l].name[1] == spritename[1]
+			    && lumpinfo[l].name[2] == spritename[2]
+			    && lumpinfo[l].name[3] == spritename[3])
 			{
 				frame = lumpinfo[l].name[4] - 'A';
 				rotation = lumpinfo[l].name[5] - '0';
