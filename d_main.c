@@ -244,6 +244,20 @@ void D_Display (void)
 	if (gamestate != wipegamestate)
 	{
 		wipe = true;
+		/* If leaving gameplay, sync screens16 (16-bit) back to
+		 * screens[0] (8-bit) so the wipe start screen captures
+		 * the actual 3D view. Without this, screens[0] has stale
+		 * data because the renderer writes to screens16 only. */
+		if (wipegamestate == GS_LEVEL)
+		{
+			extern byte *screens16;
+			unsigned short *s16 = (unsigned short *)screens16;
+			byte *s8 = screens[0];
+			int n = SCREENWIDTH * (SCREENHEIGHT - 32);
+			int k;
+			for (k = 0; k < n; k++)
+				s8[k] = (byte)s16[k];
+		}
 		wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
 	}
 	else
@@ -388,6 +402,19 @@ void D_Display (void)
 	}
 
 	/* wipe update */
+	/* If entering gameplay, the new frame was rendered to screens16.
+	 * Sync it back to screens[0] so wipe_EndScreen captures it.
+	 * (When entering intermission/finale, screens[0] is already correct.) */
+	if (gamestate == GS_LEVEL)
+	{
+		extern byte *screens16;
+		unsigned short *s16 = (unsigned short *)screens16;
+		byte *s8 = screens[0];
+		int n = SCREENWIDTH * (SCREENHEIGHT - 32);
+		int k;
+		for (k = 0; k < n; k++)
+			s8[k] = (byte)s16[k];
+	}
 	wipe_EndScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
 
 	wipestart = I_GetTime () - 1;

@@ -1352,15 +1352,13 @@ void I_FinishUpdate(void)
 /* */
 void I_ReadScreen (byte* scr)
 {
-	/* Sync 3D view from screens16 (16-bit) back to screens[0] (8-bit)
-	 * so the wipe START screen captures the current gameplay frame.
-	 * Only do this during gameplay -- during intermission/finale,
-	 * screens[0] already has the correct content from WI_Drawer/F_Drawer
-	 * and overwriting it with stale screens16 data causes the wipe
-	 * to show the old gameplay view instead of the new screen. */
+	/* Do NOT sync screens16 here. The caller is responsible for
+	 * ensuring screens[0] has the correct content before calling.
+	 * See D_Display where wipe_StartScreen syncs screens16->screens[0]
+	 * before capturing, and wipe_EndScreen skips it because the new
+	 * screen was drawn to screens[0] directly. */
 	{
-		extern gamestate_t gamestate;
-		if (gamestate == GS_LEVEL)
+		if (0)  /* sync disabled -- done by caller */
 		{
 			unsigned short *s16 = (unsigned short *)screens16;
 			byte *s8 = screens[0];
