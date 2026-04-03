@@ -393,7 +393,8 @@ x68D00M port:         zz964
 
 neozeed and neko68k - The original x68000 Doom port upon which I built this.
 
-BCC - doom8088_x68k, from which the 24kHz video mode idea originated.
+BCC - doom8088_x68k, The 24kHz video mode idea, performance improvement ideas,
+and some very useful help with bugs post release.
 
 The Amiga Doom ports (ADoom by Peter McGavin, DoomAttack by Cosmos)
 provided valuable reference for optimizing Doom on 68k hardware.
