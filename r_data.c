@@ -449,7 +449,17 @@ void R_InitTextures (void)
 	/* Load the patch names from pnames.lmp. */
 	name[8] = 0;
 	names = W_CacheLumpName ("PNAMES", PU_STATIC);
-	nummappatches = LONG ( *((int *)names) );
+	/* Read patch count as individual bytes to avoid misaligned int access.
+	 * WAD lump data may not be 4-byte aligned in zone memory.
+	 * Assemble bytes in memory order (big-endian on 68k), then
+	 * LONG() swaps to little-endian (WAD native byte order). */
+	{
+		unsigned char *nb = (unsigned char *)names;
+		nummappatches = LONG( (int)((nb[0] << 24)
+		                    | (nb[1] << 16)
+		                    | (nb[2] << 8)
+		                    | nb[3]) );
+	}
 	name_p = names+4;
 	/* patchlookup = alloca (nummappatches*sizeof(*patchlookup)); */
 	patchlookup = m_MALLOC (nummappatches*sizeof(*patchlookup));
