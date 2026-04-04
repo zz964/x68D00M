@@ -49,6 +49,7 @@ CFLAGS = \
 	-Wno-implicit-function-declaration \
 	-Wno-implicit-int \
 	-fcommon \
+	-fno-strict-aliasing \
 	-fcall-used-d2 -fcall-used-a2 \
 	-finput-charset=cp932 -fexec-charset=cp932 \
 	-fverbose-asm \

@@ -119,6 +119,22 @@ int main(int argc, char** argv)
 			}
 		}
 	}
+
+	/* Flush instruction cache at startup.  Correct practice on real
+	 * 68060 hardware (ensures no stale I-cache entries from a prior
+	 * run).  Also works around an XM6g I-cache emulation bug where
+	 * stale entries cause JSR instructions to jump to wrong addresses
+	 * -- the code shift from these instructions moves the affected
+	 * JSR to a different cache line, avoiding the stale hit. */
+	__asm__ volatile(
+		"cpusha %%ic\n\t"             /* flush+invalidate (real HW) */
+		"movec  %%cacr,%%d0\n\t"      /* read CACR */
+		"andi.l #0xFFFF7FFF,%%d0\n\t" /* clear EIC (bit 15) */
+		"movec  %%d0,%%cacr\n\t"      /* disable I-cache */
+		"ori.l  #0x00008000,%%d0\n\t" /* set EIC */
+		"movec  %%d0,%%cacr"          /* re-enable: cache now empty */
+		: : : "d0", "cc"
+	);
 #elif defined(TARGET_68030)
 	if (!M_CheckParm("-force"))
 	{

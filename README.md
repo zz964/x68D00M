@@ -1,3 +1,4 @@
+```
 # x68D00M - Optimized Doom port for accelerated Sharp x68000 computers.
 
 My intent in creating this port was to create something nice that could take advantage of
@@ -398,3 +399,5 @@ and some very useful help with bugs post release.
 
 The Amiga Doom ports (ADoom by Peter McGavin, DoomAttack by Cosmos)
 provided valuable reference for optimizing Doom on 68k hardware.
+```
+

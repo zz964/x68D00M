@@ -445,8 +445,11 @@ void I_GetEvent()
 	/* WASD support: post synthetic arrow key events so W/A/S/D work
 	 * as forward/strafe-left/backward/strafe-right alongside the
 	 * regular 'w','a','s','d' character events.
+	 * Skip when entering save game name -- otherwise A/D also inject
+	 * comma/period into the text input.
 	 * Must run BEFORE memcpy overwrites oldkeystate. */
 	{
+		extern int saveStringEnter;
 		/* WASD: post synthetic movement events.
 		 * A/D use ',' / '.' (key_strafeleft / key_straferight)
 		 * which strafe directly without needing a modifier.
@@ -458,20 +461,23 @@ void I_GetEvent()
 			{ 32, '.'   },  /* D (scan 32) -> strafe right */
 		};
 		int wi;
-		for (wi = 0; wi < 4; wi++)
+		if (!saveStringEnter)
 		{
-			int sc = wasd[wi].scan;
-			if (tempkey[sc] && !oldkeystate[sc])
+			for (wi = 0; wi < 4; wi++)
 			{
-				event.type = ev_keydown;
-				event.data1 = wasd[wi].doom_key;
-				D_PostEvent(&event);
-			}
-			else if (!tempkey[sc] && oldkeystate[sc])
-			{
-				event.type = ev_keyup;
-				event.data1 = wasd[wi].doom_key;
-				D_PostEvent(&event);
+				int sc = wasd[wi].scan;
+				if (tempkey[sc] && !oldkeystate[sc])
+				{
+					event.type = ev_keydown;
+					event.data1 = wasd[wi].doom_key;
+					D_PostEvent(&event);
+				}
+				else if (!tempkey[sc] && oldkeystate[sc])
+				{
+					event.type = ev_keyup;
+					event.data1 = wasd[wi].doom_key;
+					D_PostEvent(&event);
+				}
 			}
 		}
 	}
