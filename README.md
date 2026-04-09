@@ -148,7 +148,7 @@ Expected frame rates at E1M1 start position:
 | PhantomX on XVI 16mhz, 060 mode (RPi 4B). Unstable for me. | High   | Full | 16        |
 | PhantomX on XVI 16mhz, 030 mode (RPi 4B). Unstable for me. | High   | Full | 20-21     |
 | X68030 (25 MHz)                                            | Low    | Min  | ~18       |
-| XM6g emulator (68060 50 MHz, 2x mult)                      | High   | Full | 25        |
+| XM6g emulator (68060 50 MHz, 2x mult)                      | High   | Full | 26        |
 | XM6g emulator (68060 200 MHz, 4x mult)                     | High   | Full | 35 locked |
 
 
