@@ -127,8 +127,12 @@ extern int rw_angle1;
 /* Segs count? */
 extern int sscount;
 
+extern visplane_t       visplanes[];
+extern byte             visplane_modified[];
 extern visplane_t*      floorplane;
 extern visplane_t*      ceilingplane;
+extern int              floorplane_idx;
+extern int              ceilingplane_idx;
 
 
 #endif

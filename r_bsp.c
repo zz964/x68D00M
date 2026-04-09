@@ -51,7 +51,7 @@ line_t*         linedef;
 sector_t*       frontsector;
 sector_t*       backsector;
 
-drawseg_t drawsegs[MAXDRAWSEGS];
+drawseg_t drawsegs[MAXDRAWSEGS] __attribute__((aligned(16)));
 drawseg_t*      ds_p;
 
 
@@ -519,16 +519,18 @@ void R_Subsector (int num)
                 floorplane = R_FindPlane (frontsector->floorheight,
                                           frontsector->floorpic,
                                           frontsector->lightlevel);
+		floorplane_idx = floorplane - visplanes;
 	}
         else
 		floorplane = NULL;
 
         if (frontsector->ceilingheight > viewz
-            || frontsector->ceilingpic == skyflatnum)
+            || frontsector->isskyflatnum)
         {
                 ceilingplane = R_FindPlane (frontsector->ceilingheight,
                                             frontsector->ceilingpic,
                                             frontsector->lightlevel);
+		ceilingplane_idx = ceilingplane - visplanes;
 	}
         else
 		ceilingplane = NULL;

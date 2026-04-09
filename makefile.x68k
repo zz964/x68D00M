@@ -54,7 +54,7 @@ CFLAGS = \
 	-finput-charset=cp932 -fexec-charset=cp932 \
 	-fverbose-asm \
 	-fomit-frame-pointer \
-	-msoft-float
+	-msoft-float \
 
 LIBS = \
 	${XDEV68K_DIR}/lib/xc/BASLIB.L \

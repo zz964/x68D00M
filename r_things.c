@@ -290,7 +290,7 @@ void R_InitSpriteDefs (char** namelist)
 /* */
 /* GAME FUNCTIONS */
 /* */
-vissprite_t vissprites[MAXVISSPRITES];
+vissprite_t vissprites[MAXVISSPRITES] __attribute__((aligned(16)));
 vissprite_t*    vissprite_p;
 int newvissprite;
 

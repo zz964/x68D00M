@@ -89,7 +89,9 @@ fixed_t viewsin;
 player_t*               viewplayer;
 
 /* 0 = high, 1 = low */
+#ifndef X68_NO_LOWDETAIL
 int detailshift;
+#endif
 
 /* */
 /* precalculated math tables */
@@ -691,7 +693,9 @@ void R_ExecuteSetViewSize (void)
 		viewheight = (setblocks*168/10)&~7;
 	}
 
+#ifndef X68_NO_LOWDETAIL
 	detailshift = setdetail;
+#endif
 	viewwidth = scaledviewwidth>>detailshift;
 
 	/* Guard against zero-size viewport (can happen during rapid
@@ -962,8 +966,10 @@ void R_RenderPlayerView (player_t* player)
 	R_ClearPlanes ();
 	R_ClearSprites ();
 
+#ifndef X68_NO_NETGAME
 	/* check for new console commands. */
 	NetUpdate ();
+#endif
 
 	/* The head node is the last node output. */
 #ifdef DOOM_LOG
@@ -978,8 +984,10 @@ void R_RenderPlayerView (player_t* player)
 	R_RenderBSPNode (numnodes-1);
 #endif
 
+#ifndef X68_NO_NETGAME
 	/* Check for new console commands. */
 	NetUpdate ();
+#endif
 
 #ifdef DOOM_LOG
 	{
@@ -996,8 +1004,10 @@ void R_RenderPlayerView (player_t* player)
 	R_DrawPlanes ();
 #endif
 
+#ifndef X68_NO_NETGAME
 	/* Check for new console commands. */
 	NetUpdate ();
+#endif
 
 #ifdef DOOM_LOG
 	{
@@ -1011,6 +1021,8 @@ void R_RenderPlayerView (player_t* player)
 	R_DrawMasked ();
 #endif
 
+#ifndef X68_NO_NETGAME
 	/* Check for new console commands. */
 	NetUpdate ();
+#endif
 }

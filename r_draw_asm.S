@@ -96,6 +96,7 @@ PROF_COUNTERS           equ     0
 *   a2  colormap (256-entry table)
 * ===========================================================================
 
+        .align  4                       * 16-byte align for I-cache
 _R_DrawColumn:
         movem.l d3/d4/d5/d6/d7,-(sp)
 
@@ -162,24 +163,27 @@ RDC_mul_cont:
         * colormap16[idx] via (a2,dN.l*2): word read with *2 scale.
         * Dest write: move.w to screens16 (640-byte row stride).
         * Row offsets: 640, 1280, LEA 1920.
+        .align  4                       * 16-byte align inner loop
 RDC_3loop:
-        bfextu  d0{#9:#7},d3            * index_A = (frac_A>>16)&$7F
-        add.l   d6,d0                   * frac_A += 3*step
-        bfextu  d1{#9:#7},d4            * index_B
-        add.l   d6,d1                   * frac_B += 3*step
-        bfextu  d2{#9:#7},d5            * index_C
-        add.l   d6,d2                   * frac_C += 3*step
-        move.b  (a1,d3.w),d3           * source[A]
-        move.b  (a1,d4.w),d4           * source[B]
-        and.l   #255,d3                 * zero-extend A
-        move.b  (a1,d5.w),d5           * source[C]
-        and.l   #255,d4                 * zero-extend B
-        move.w  (a2,d3.l*2),(a0)       * colormap16[A]->(a0)
-        and.l   #255,d5                 * zero-extend C
-        move.w  (a2,d4.l*2),(640,a0)   * colormap16[B]->(a0+640)
-        move.w  (a2,d5.l*2),(1280,a0)  * colormap16[C]->(a0+1280)
-        lea     (1920,a0),a0            * dest += 3 rows * 640 bytes
-        subq.l  #3,d7                   * remaining -= 3
+        * --- Extract texture indices (3 dual-issue pairs) ---
+        bfextu  d0{#9:#7},d3            * index_A = (frac_A>>16)&$7F  (pOEP)
+        add.l   d6,d0                   * frac_A += 3*step             (sOEP) DUAL
+        bfextu  d1{#9:#7},d4            * index_B                      (pOEP)
+        add.l   d6,d1                   * frac_B += 3*step             (sOEP) DUAL
+        bfextu  d2{#9:#7},d5            * index_C                      (pOEP)
+        add.l   d6,d2                   * frac_C += 3*step             (sOEP) DUAL
+        * --- Source lookups (interleaved for pipeline) ---
+        * bfextu zero-fills d3/d4/d5 to 32 bits (0-127), move.b only
+        * overwrites low byte, so upper bytes stay 0.  No AND needed.
+        move.b  (a1,d3.w),d3           * source[A]                    (pOEP)
+        move.b  (a1,d4.w),d4           * source[B]                    (pOEP)
+        move.b  (a1,d5.w),d5           * source[C]                    (pOEP)
+        * --- Colormap + write (interleave writes with independent ops) ---
+        move.w  (a2,d3.l*2),(a0)       * colormap16[A]->(a0)          (pOEP)
+        move.w  (a2,d4.l*2),(640,a0)   * colormap16[B]->(a0+640)      (pOEP)
+        move.w  (a2,d5.l*2),(1280,a0)  * colormap16[C]->(a0+1280)     (pOEP)
+        lea     (1920,a0),a0            * dest += 3 rows               (pOEP)
+        subq.l  #3,d7                   * remaining -= 3               (sOEP) DUAL
         bge     RDC_3loop
 
         * After loop: d7 = (count mod 3) - 3  (negative)
@@ -194,13 +198,11 @@ RDC_tail_check:
         beq     RDC_done                * 0 tail pixels
         bfextu  d0{#9:#7},d3
         move.b  (a1,d3.w),d3
-        and.l   #255,d3
         move.w  (a2,d3.l*2),(a0)       * draw tail pixel A (16-bit)
         subq.l  #1,d7
         beq     RDC_done                * only 1 tail pixel
         bfextu  d1{#9:#7},d3           * draw tail pixel B
         move.b  (a1,d3.w),d3
-        and.l   #255,d3
         move.w  (a2,d3.l*2),(640,a0)   * tail pixel B (16-bit, +640)
 
 RDC_done:
@@ -269,6 +271,7 @@ RDC_done:
 * Callee-saved used: d3/d4/d5/d6/d7/a3
 * ===========================================================================
 
+        .align  4                       * 16-byte align for I-cache
 _R_DrawSpan:
         movem.l d3/d4/d5/d6/d7/a3,-(sp)
 
@@ -364,58 +367,66 @@ RDS4_aligned:
         bra.b   RDS4_start
 
         * ---- Top of loop: finish previous group ----
-        * On entry: d5=src_byte_p3, d4={p2,p3,incomplete}, d6=index(next p0)
+        * On entry: d5=src_byte_p3, d4={p2,incomplete}, d6=index(next p0)
+        .align  4                       * 16-byte align inner loop
 RDS4_loop:
-        or.w    #$ffc0,d0
-        or.w    #$f03f,d1
-        move.w  (a2,d5.l*2),d4        * colormap16[p3] -> d4[15:0]
-        move.l  d4,(a0)+               * write pixels 2-3 (16-bit pair)
-        move.w  d0,d6
-        and.w   d1,d6
+        or.w    #$ffc0,d0               *                         (pOEP)
+        or.w    #$f03f,d1               *                         (pOEP)
+        move.w  (a2,d5.l*2),d4         * colormap16[p3]->d4.lo   (pOEP)
+        move.w  d0,d6                   * start index             (sOEP) DUAL
+        move.l  d4,(a0)+                * write pixels 2-3        (pOEP)
+        and.w   d1,d6                   * finalize index          (sOEP) DUAL
 
         * ---- Loop body: 4 pixels, 2 MOVE.L writes ----
+        * Reordered for 68060 dual-issue (sOEP pairing).
+        * d5 upper bytes always 0 (moveq init; move.b only writes low).
+        *
+        * Key trick: swap d4 is deferred from pixel N to the start of
+        * pixel N+1, so it pairs with addx.l (pOEP) instead of stalling
+        * on the colormap load that just wrote d4.
+        *
+        * pOEP-only: ADDX, BFEXTU, or.w #imm, memory ops, dbf
+        * sOEP-eligible: move.w Dn,Dn / and.w Dn,Dn / swap Dn / add.l Dn,Dn
 RDS4_start:
         * PIXEL 0:
-        addx.l  d2,d0
-        addx.l  d3,d1
-        move.b  (a1,d6.l),d5
-        or.w    #$ffc0,d0
-        or.w    #$f03f,d1
-        move.w  d0,d6
-        and.l   #255,d5
-        and.w   d1,d6
-        move.w  (a2,d5.l*2),d4        * colormap16[p0] -> d4[15:0]
-        swap    d4                      * d4[31:16] = colormap16[p0]
+        addx.l  d2,d0                   * advance xfrac           (pOEP)
+        addx.l  d3,d1                   * advance yfrac           (pOEP, X dep)
+        move.b  (a1,d6.l),d5           * source[prev_idx]        (pOEP)
+        or.w    #$ffc0,d0               * mask xfrac              (pOEP)
+        or.w    #$f03f,d1               * mask yfrac              (pOEP)
+        move.w  d0,d6                   * start index             (sOEP) DUAL
+        move.w  (a2,d5.l*2),d4         * colormap16[p0]          (pOEP)
+        and.w   d1,d6                   * finalize index          (sOEP) DUAL
+        * swap d4 deferred to pixel 1 for dual-issue
 
         * PIXEL 1:
-        addx.l  d2,d0
-        addx.l  d3,d1
-        move.b  (a1,d6.l),d5
-        or.w    #$ffc0,d0
-        or.w    #$f03f,d1
-        move.w  d0,d6
-        and.l   #255,d5
-        and.w   d1,d6
-        move.w  (a2,d5.l*2),d4        * colormap16[p1] -> d4[15:0]
-        move.l  d4,(a0)+               * write pixels 0-1 (16-bit pair)
+        addx.l  d2,d0                   *                         (pOEP)
+        swap    d4                       * d4[31:16]=p0            (sOEP) DUAL (d4 ready)
+        addx.l  d3,d1                   *                         (pOEP, X dep)
+        move.b  (a1,d6.l),d5           * source[idx]             (pOEP)
+        or.w    #$ffc0,d0               *                         (pOEP)
+        or.w    #$f03f,d1               *                         (pOEP)
+        move.w  d0,d6                   *                         (sOEP) DUAL
+        move.w  (a2,d5.l*2),d4         * colormap16[p1]->d4.lo   (pOEP)
+        and.w   d1,d6                   * finalize index          (sOEP) DUAL
+        move.l  d4,(a0)+                * write pixels 0-1        (pOEP)
 
         * PIXEL 2:
-        addx.l  d2,d0
-        addx.l  d3,d1
-        move.b  (a1,d6.l),d5
-        or.w    #$ffc0,d0
-        or.w    #$f03f,d1
-        move.w  d0,d6
-        and.l   #255,d5
-        and.w   d1,d6
-        move.w  (a2,d5.l*2),d4        * colormap16[p2] -> d4[15:0]
-        swap    d4                      * d4[31:16] = colormap16[p2]
+        addx.l  d2,d0                   *                         (pOEP)
+        addx.l  d3,d1                   *                         (pOEP, X dep)
+        move.b  (a1,d6.l),d5           * source[idx]             (pOEP)
+        or.w    #$ffc0,d0               *                         (pOEP)
+        or.w    #$f03f,d1               *                         (pOEP)
+        move.w  d0,d6                   *                         (sOEP) DUAL
+        move.w  (a2,d5.l*2),d4         * colormap16[p2]          (pOEP)
+        and.w   d1,d6                   * finalize index          (sOEP) DUAL
+        * swap d4 deferred to pixel 3 for dual-issue
 
         * PIXEL 3 (source preloaded for top-of-loop):
-        addx.l  d2,d0
-        addx.l  d3,d1
-        move.b  (a1,d6.l),d5
-        and.l   #255,d5
+        addx.l  d2,d0                   *                         (pOEP)
+        swap    d4                       * d4[31:16]=p2            (sOEP) DUAL (d4 ready)
+        addx.l  d3,d1                   *                         (pOEP, X dep)
+        move.b  (a1,d6.l),d5           * source[idx]             (pOEP)
         dbf     d7,RDS4_loop
 
         * Finish last group
@@ -438,7 +449,6 @@ RDS4_tail_loop:
         addx.l  d2,d0
         addx.l  d3,d1
         move.b  (a1,d6.l),d5
-        and.l   #255,d5
         move.w  (a2,d5.l*2),(a0)+     * colormap16[source] -> dest (16-bit)
 
 RDS4_tail_end:
@@ -940,6 +950,7 @@ vp_SIZEOF               equ     664
 * Callee-saved used: d3/d4 only.
 * Tail-calls spanfunc on exit: R_DrawPlanes' "lea 12(sp),sp" cleans the args.
 * ---------------------------------------------------------------------------
+        .align  4                       * 16-byte align for I-cache
 _R_MapPlane:
         movem.l d3/d4,-(sp)
 
@@ -1091,13 +1102,20 @@ RMP_cmap_done:
 * b2 is kept in one stack slot while loops 1+2 execute (where R_MapPlane
 * calls can clobber d0-d2), then popped into d2 for loops 3+4 (no calls).
 * ---------------------------------------------------------------------------
+        .align  4                       * 16-byte align for I-cache
 _R_DrawPlanes:
         movem.l d3/d4/d5/d6/d7/a2/a3/a4/a5/a6,-(sp)   * 10 regs = 40 bytes
 
         lea     _visplanes,a2
         lea     _spanstart,a5           * a5 stable across flat inner loop
+        clr.l   _rdp_plane_idx
 
 RDP_plane_loop:
+        move.l  _rdp_plane_idx,d0
+        lea     _visplane_modified,a0
+        tst.b   (a0,d0.l)
+        beq.w   RDP_next                * not modified: skip
+
         move.l  vp_minx(a2),d3
         move.l  vp_maxx(a2),d4
         cmp.l   d3,d4
@@ -1271,6 +1289,7 @@ RDP_l4_done:
 
 RDP_next:
         lea     vp_SIZEOF(a2),a2        * pl++
+        addq.l  #1,_rdp_plane_idx
         cmp.l   _lastvisplane,a2
         blo.w   RDP_plane_loop
 
@@ -1286,8 +1305,7 @@ RDP_done:
         * ----------------------------------------------------------
 RDP_sky:
         move.l  _pspriteiscale,d0
-        move.l  _detailshift,d1
-        lsr.l   d1,d0
+        * detailshift removed: always 0 with X68_NO_LOWDETAIL
         move.l  d0,_dc_iscale
         move.l  _colormaps,d0
         move.l  d0,_dc_colormap
@@ -1338,5 +1356,9 @@ RDP_sky_next:
         movea.l d4,a2                   * restore pl
         movea.l a6,a5                   * restore &spanstart
         bra.w   RDP_next
+
+        .bss
+        .even
+_rdp_plane_idx: .ds.l   1
 
         .endif  * HAVE_ASM_PLANES

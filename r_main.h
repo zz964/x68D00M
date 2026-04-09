@@ -88,10 +88,14 @@ extern lighttable_t*    fixedcolormap;
 #define NUMCOLORMAPS            32
 
 
-/* Blocky/low detail mode. */
-/*B remove this? */
-/*  0 = high, 1 = low */
+/* Blocky/low detail mode.   0 = high, 1 = low.
+ * X68_NO_LOWDETAIL: compile out low-detail support.  detailshift becomes
+ * a constant 0 so GCC eliminates all shift-by-detailshift operations. */
+#ifdef X68_NO_LOWDETAIL
+#define detailshift 0
+#else
 extern int detailshift;
+#endif
 
 
 /* */

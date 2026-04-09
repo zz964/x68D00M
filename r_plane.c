@@ -52,14 +52,17 @@ planefunction_t ceilingfunc;
 
 /* Here comes the obnoxious "visplane". */
 #define MAXVISPLANES    128
-visplane_t visplanes[MAXVISPLANES];
+visplane_t visplanes[MAXVISPLANES] __attribute__((aligned(16)));
+byte visplane_modified[MAXVISPLANES];
 visplane_t*             lastvisplane;
 visplane_t*             floorplane;
 visplane_t*             ceilingplane;
+int                     floorplane_idx;
+int                     ceilingplane_idx;
 
 /* ? */
 #define MAXOPENINGS     SCREENWIDTH*64
-short openings[MAXOPENINGS];
+short openings[MAXOPENINGS] __attribute__((aligned(16)));
 short*                  lastopening;
 
 
@@ -68,14 +71,14 @@ short*                  lastopening;
 /*  floorclip starts out SCREENHEIGHT */
 /*  ceilingclip starts out -1 */
 /* */
-short floorclip[SCREENWIDTH];
-short ceilingclip[SCREENWIDTH];
+short floorclip[SCREENWIDTH] __attribute__((aligned(16)));
+short ceilingclip[SCREENWIDTH] __attribute__((aligned(16)));
 
 /* */
 /* spanstart holds the start of a plane span */
 /* initialized to 0 at start */
 /* */
-int spanstart[SCREENHEIGHT];
+int spanstart[SCREENHEIGHT] __attribute__((aligned(16)));
 int spanstop[SCREENHEIGHT];
 
 /* */
@@ -260,6 +263,8 @@ R_FindPlane
 	memset (check->top,0xff,sizeof(check->top));
 	memset (check->bottom,0,sizeof(check->bottom));
 
+	visplane_modified[check - visplanes] = 0;
+
 	return check;
 }
 
@@ -325,6 +330,8 @@ R_CheckPlane
 
 	memset (pl->top,0xff,sizeof(pl->top));
 	memset (pl->bottom,0,sizeof(pl->bottom));
+
+	visplane_modified[pl - visplanes] = 0;
 
 	return pl;
 }
@@ -395,6 +402,9 @@ void R_DrawPlanes (void)
 
 	for (pl = visplanes; pl < lastvisplane; pl++)
 	{
+		if (!visplane_modified[pl - visplanes])
+			continue;
+
 		if (pl->minx > pl->maxx)
 			continue;
 

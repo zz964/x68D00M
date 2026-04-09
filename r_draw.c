@@ -67,8 +67,8 @@ int scaledviewwidth;
 int viewheight;
 int viewwindowx;
 int viewwindowy;
-byte*           ylookup[MAXHEIGHT];
-byte*           ylookup2[MAXHEIGHT];   /* 16-bit screens16 row pointers for 3D renderer */
+byte*           ylookup[MAXHEIGHT] __attribute__((aligned(16)));
+byte*           ylookup2[MAXHEIGHT] __attribute__((aligned(16)));   /* 16-bit screens16 row pointers for 3D renderer */
 int columnofs[MAXWIDTH];
 
 /* Color tables for different players, */
@@ -104,8 +104,8 @@ int dccount;
 /* Thus a special case loop for very fast rendering can */
 /*  be used. It has also been used with Wolfenstein 3D. */
 /* */
-/* Original simple loop - replaced by the unrolled version below.
-#if 0 */
+/* Original simple loop - replaced by the unrolled version below. */
+#if 0
 void R_DrawColumn_simple (void)
 {
 	int count;
@@ -149,7 +149,7 @@ void R_DrawColumn_simple (void)
 
 	} while (count--);
 }
-/* #endif */
+#endif
 
 
 /* 8-pixel unrolled R_DrawColumn for 68030 performance.
@@ -206,6 +206,7 @@ void R_DrawColumn (void)
 #endif /* HAVE_ASM_RDRAW */
 
 
+#ifndef X68_NO_LOWDETAIL
 void R_DrawColumnLow (void)
 {
 	int count;
@@ -249,6 +250,7 @@ void R_DrawColumnLow (void)
 	} while (count--);
 	}
 }
+#endif /* X68_NO_LOWDETAIL */
 
 
 /* */
@@ -587,6 +589,7 @@ void R_DrawSpan (void)
 #endif /* HAVE_ASM_RDRAW */
 
 
+#ifndef X68_NO_LOWDETAIL
 /* */
 /* Again.. */
 /* */
@@ -634,6 +637,7 @@ void R_DrawSpanLow (void)
 	} while (count--);
 	}
 }
+#endif /* X68_NO_LOWDETAIL */
 
 /* */
 /* R_InitBuffer */

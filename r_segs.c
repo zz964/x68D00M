@@ -309,6 +309,7 @@ void R_RenderSegLoop (void)
 			{
 				*cpt = top;
 				*cpb = bottom;
+				visplane_modified[ceilingplane_idx] = 1;
 			}
 		}
 
@@ -327,6 +328,7 @@ void R_RenderSegLoop (void)
 			{
 				*fpt = top;
 				*fpb = bottom;
+				visplane_modified[floorplane_idx] = 1;
 			}
 		}
 
@@ -626,8 +628,8 @@ R_StoreWallRange
 		worldlow = backsector->floorheight - viewz;
 
 		/* hack to allow height changes in outdoor areas */
-		if (frontsector->ceilingpic == skyflatnum
-		    && backsector->ceilingpic == skyflatnum)
+		if (frontsector->isskyflatnum
+		    && backsector->isskyflatnum)
 		{
 			worldtop = worldhigh;
 		}
@@ -768,7 +770,7 @@ R_StoreWallRange
 	}
 
 	if (frontsector->ceilingheight <= viewz
-	    && frontsector->ceilingpic != skyflatnum)
+	    && !frontsector->isskyflatnum)
 	{
 		/* below view plane */
 		markceiling = false;
@@ -805,10 +807,16 @@ R_StoreWallRange
 
 	/* render it */
 	if (markceiling)
+	{
 		ceilingplane = R_CheckPlane (ceilingplane, rw_x, rw_stopx-1);
+		ceilingplane_idx = ceilingplane - visplanes;
+	}
 
 	if (markfloor)
+	{
 		floorplane = R_CheckPlane (floorplane, rw_x, rw_stopx-1);
+		floorplane_idx = floorplane - visplanes;
+	}
 
 #ifdef DOOM_LOG
 	{

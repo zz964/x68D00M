@@ -51,18 +51,13 @@ int sightcounts[2];
 /* */
 /* P_DivlineSide */
 /* Returns side 0 (front), 1 (back), or 2 (on). */
-/* */
-int
+/* Inlined -- called 6 times in sight-check BSP traversal. */
+static inline int
 P_DivlineSide
         ( fixed_t x,
         fixed_t y,
         divline_t*    node )
 {
-	fixed_t dx;
-	fixed_t dy;
-	fixed_t left;
-	fixed_t right;
-
 	if (!node->dx)
 	{
 		if (x==node->x)
@@ -85,18 +80,19 @@ P_DivlineSide
 		return node->dx > 0;
 	}
 
-	dx = (x - node->x);
-	dy = (y - node->y);
+	{
+		fixed_t dx = (x - node->x);
+		fixed_t dy = (y - node->y);
+		fixed_t left =  (node->dy>>FRACBITS) * (dx>>FRACBITS);
+		fixed_t right = (dy>>FRACBITS) * (node->dx>>FRACBITS);
 
-	left =  (node->dy>>FRACBITS) * (dx>>FRACBITS);
-	right = (dy>>FRACBITS) * (node->dx>>FRACBITS);
+		if (right < left)
+			return 0; /* front side */
 
-	if (right < left)
-		return 0; /* front side */
-
-	if (left == right)
-		return 2;
-	return 1;       /* back side */
+		if (left == right)
+			return 2;
+		return 1;       /* back side */
+	}
 }
 
 
