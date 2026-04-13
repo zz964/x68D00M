@@ -430,6 +430,14 @@ void M_LoadDefaults (void)
 
                 fclose (f);
 	}
+
+#ifdef DELTA_BLIT
+	/* Delta blit and vsync are mutually exclusive.
+	 * If both are on (e.g. old config + new default), vsync wins --
+	 * vsync is only useful on fast setups where delta blit isn't needed. */
+	if (use_delta_blit && use_vsync)
+		use_delta_blit = 0;
+#endif
 }
 
 

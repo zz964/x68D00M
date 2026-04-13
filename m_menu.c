@@ -1062,7 +1062,7 @@ void M_DrawOptions(void)
         M_DrawThermo(x, y + lh*scrnsize_slider - 2,  9, screenSize);
 
         M_WriteText(x, y + lh*mousesens + 1,     "MOUSE SENSITIVITY");
-        M_DrawThermo(x, y + lh*mousesens_slider - 2, 10, mouseSensitivity);
+        M_DrawThermo(x, y + lh*mousesens_slider - 2, 20, mouseSensitivity);
 
         {
                 extern int use_mercury;
@@ -1127,9 +1127,12 @@ void M_CycleVideoMode(int choice)
 void M_ToggleVSync(int choice)
 {
         use_vsync = !use_vsync;
-        if (use_vsync)
+        if (use_vsync) {
             players[consoleplayer].message = "VSync on";
-        else
+#ifdef DELTA_BLIT
+            { extern int use_delta_blit; use_delta_blit = 0; }
+#endif
+        } else
             players[consoleplayer].message = "VSync off";
 }
 
@@ -1138,10 +1141,11 @@ void M_ToggleDeltaBlit(int choice)
 {
         extern int use_delta_blit;
         use_delta_blit = !use_delta_blit;
-        if (use_delta_blit)
-            players[consoleplayer].message = "Delta blit on";
-        else
-            players[consoleplayer].message = "Delta blit off";
+        if (use_delta_blit) {
+            players[consoleplayer].message = "Changed pixels only: on";
+            use_vsync = 0;
+        } else
+            players[consoleplayer].message = "Changed pixels only: off";
 }
 #endif
 
@@ -1299,7 +1303,7 @@ void M_ChangeSensitivity(int choice)
 			mouseSensitivity--;
 		break;
 	case 1:
-		if (mouseSensitivity < 9)
+		if (mouseSensitivity < 19)
 			mouseSensitivity++;
 		break;
 	}
