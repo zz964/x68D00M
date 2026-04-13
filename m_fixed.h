@@ -100,6 +100,24 @@ static inline fixed_t FixedDiv(fixed_t a, fixed_t b)
         return result;
     }
 }
+#elif defined(TARGET_68030)
+/* Inline FixedDiv for 68030: native DIVS.L 64/32, ~90 cycles.
+ * Avoids the ~300+ cycle __divdi3 libgcc helper for 64-bit division. */
+static inline fixed_t FixedDiv(fixed_t a, fixed_t b)
+{
+    if ((abs(a) >> 14) >= abs(b))
+        return (a ^ b) < 0 ? ((fixed_t)0x80000000) : ((fixed_t)0x7FFFFFFF);
+    {
+        long hi = a >> 16;     /* sign-extended high half of (a << 16) */
+        long lo = a << 16;     /* low half of (a << 16) */
+        __asm__ volatile (
+            "divs.l %2,%1:%0"
+            : "+d"(lo), "+d"(hi)
+            : "d"(b)
+        );
+        return (fixed_t)lo;
+    }
+}
 #else
 fixed_t FixedDiv        (fixed_t a, fixed_t b);
 #endif

@@ -45,24 +45,21 @@ static const char
  * 68060: FPU asm version linked from r_draw_asm.S. */
 #ifdef TARGET_68030
 
+/* FixedMul and FixedDiv are static inline in m_fixed.h for 68030. */
+
 fixed_t
 FixedDiv2
         ( fixed_t a,
         fixed_t b )
 {
-	long long c;
-	c = ((long long)a<<16) / ((long long)b);
-	return (fixed_t) c;
-}
-
-fixed_t
-FixedDiv
-        ( fixed_t a,
-        fixed_t b )
-{
-	if ( (abs(a)>>14) >= abs(b))
-		return (a^b)<0 ? MININT : MAXINT;
-	return FixedDiv2 (a,b);
+	long hi = a >> 16;
+	long lo = a << 16;
+	__asm__ volatile (
+		"divs.l %2,%1:%0"
+		: "+d"(lo), "+d"(hi)
+		: "d"(b)
+	);
+	return (fixed_t) lo;
 }
 
 #elif !defined(TARGET_68060)
