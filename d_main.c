@@ -79,6 +79,7 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "am_map.h"
 
 #include "p_setup.h"
+#include "p_local.h"
 #include "r_local.h"
 
 
@@ -321,6 +322,36 @@ void D_Display (void)
 		g_perf_render_tics += I_GetTimeCs() - _t0;
 		g_perf_render_us += I_GetTimeUs() - _us0;
 #endif
+		/* Crosshair: draw a small + on screens16 at viewport center.
+		 * Color changes when aimed at a target (autoaim check).
+		 * screens16 pixels are palette indices (as 16-bit words),
+		 * so use pixel_remap16[] to get valid non-transparent indices. */
+		{ extern int show_crosshair;
+		if (show_crosshair)
+		{
+			extern byte *screens16;
+			extern unsigned short pixel_remap16[];
+			extern int viewwindowx, viewwindowy;
+			extern int scaledviewwidth, viewheight;
+			extern mobj_t *linetarget;
+			unsigned short *s16 = (unsigned short *)screens16;
+			int cx = viewwindowx + scaledviewwidth / 2;
+			int cy = viewwindowy + viewheight / 2;
+			unsigned short color;
+			int i;
+
+			/* Check if autoaim finds a target */
+			P_AimLineAttack(players[displayplayer].mo,
+			                players[displayplayer].mo->angle,
+			                16*64*FRACUNIT);
+			color = linetarget ? pixel_remap16[112] /* green */
+			                   : pixel_remap16[88];  /* light gray */
+
+			for (i = -2; i <= 2; i++) {
+				s16[(cy + i) * SCREENWIDTH + cx] = color;
+				s16[cy * SCREENWIDTH + cx + i] = color;
+			}
+		} }
 	}
 
 	if (gamestate == GS_LEVEL && gametic)

@@ -86,6 +86,7 @@ int showMessages;
 /* Blocky mode, has default, 0 = high, 1 = normal */
 int detailLevel;
 int show_fps = 0;
+int show_crosshair = 1;
 
 /* Music output mode: 0=FM OPL2, 1=FM GM (FB-01), 2=General MIDI, 3=MT-32 */
 int music_mode = -1;
@@ -349,6 +350,7 @@ menu_t NewDef =
 void M_ToggleMouseWalk(int choice);
 void M_ToggleVSync(int choice);
 void M_ToggleFPS(int choice);
+void M_ToggleCrosshair(int choice);
 void M_CycleVideoMode(int choice);
 #ifdef DELTA_BLIT
 void M_ToggleDeltaBlit(int choice);
@@ -367,6 +369,7 @@ enum
         opt_mousewalk,
         opt_vsync,
         opt_fps,
+        opt_crosshair,
         opt_videomode,
 #ifdef DELTA_BLIT
         opt_deltablit,
@@ -387,6 +390,7 @@ menuitem_t OptionsMenu[]=
         {1,"",      M_ToggleMouseWalk,'v'},
         {1,"",      M_ToggleVSync,'y'},
         {1,"",      M_ToggleFPS,'f'},
+        {1,"",      M_ToggleCrosshair,'c'},
         {1,"",      M_CycleVideoMode,'v'},
 #ifdef DELTA_BLIT
         {1,"",      M_ToggleDeltaBlit,'d'}
@@ -401,7 +405,7 @@ menu_t OptionsDef =
         M_DrawOptions,
         60,21,
         0,
-        11              /* lineheight: compact for small text font */
+        10              /* lineheight: compact for small text font */
 };
 
 /* */
@@ -1061,20 +1065,22 @@ void M_DrawOptions(void)
         M_WriteText(x, y + lh*scrnsize + 1,      "SCREEN SIZE");
         M_DrawThermo(x, y + lh*scrnsize_slider - 2,  9, screenSize);
 
-        M_WriteText(x, y + lh*mousesens + 1,     "MOUSE SENSITIVITY");
+        M_WriteText(x, y + lh*mousesens + 2,     "MOUSE SENSITIVITY");
         M_DrawThermo(x, y + lh*mousesens_slider - 2, 20, mouseSensitivity);
 
         {
                 extern int use_mercury;
-                M_WriteText(x, y + lh*soundvol + 1,
+                M_WriteText(x, y + lh*soundvol + 2,
                             use_mercury ? "SOUND" : "MUSIC");
         }
-        M_WriteText(x, y + lh*opt_mousewalk + 1,
+        M_WriteText(x, y + lh*opt_mousewalk + 2,
                     novert ? "MOUSE WALK: OFF" : "MOUSE WALK: ON");
-        M_WriteText(x, y + lh*opt_vsync + 1,
+        M_WriteText(x, y + lh*opt_vsync + 2,
                     use_vsync ? "VSYNC: ON" : "VSYNC: OFF");
-        M_WriteText(x, y + lh*opt_fps + 1,
+        M_WriteText(x, y + lh*opt_fps + 2,
                     show_fps ? "FPS COUNTER: ON" : "FPS COUNTER: OFF");
+        M_WriteText(x, y + lh*opt_crosshair + 2,
+                    show_crosshair ? "CROSSHAIR: ON" : "CROSSHAIR: OFF");
 
         {
                 extern int video_mode;
@@ -1085,13 +1091,13 @@ void M_DrawOptions(void)
                 };
                 int idx = video_mode;
                 if (idx < 0 || idx > 2) idx = 1;
-                M_WriteText(x, y + lh*opt_videomode + 1,
+                M_WriteText(x, y + lh*opt_videomode + 2,
                             (char *)vmode_names[idx]);
         }
 #ifdef DELTA_BLIT
         {
                 extern int use_delta_blit;
-                M_WriteText(x, y + lh*opt_deltablit + 1,
+                M_WriteText(x, y + lh*opt_deltablit + 2,
                             use_delta_blit ? "DRAW ONLY CHANGED PIXELS: ON"
                                            : "DRAW ONLY CHANGED PIXELS: OFF");
         }
@@ -1114,6 +1120,15 @@ void M_ToggleFPS(int choice)
             players[consoleplayer].message = "FPS counter on";
         else
             players[consoleplayer].message = "FPS counter off";
+}
+
+void M_ToggleCrosshair(int choice)
+{
+        show_crosshair = !show_crosshair;
+        if (show_crosshair)
+            players[consoleplayer].message = "Crosshair on";
+        else
+            players[consoleplayer].message = "Crosshair off";
 }
 
 void M_CycleVideoMode(int choice)

@@ -894,8 +894,25 @@ void I_FinishUpdate(void)
 			static int prev_viewwidth = -1;
 			/* Detect detail level or viewport size change */
 			if (detailLevel != prev_detail) {
-				if (detailLevel == 1)
+				if (detailLevel == 1) {
 					lowdetail_dirty = 1;
+					/* Clear odd columns in both GVRAM buffers
+					 * to prevent flicker with vsync double-buffer */
+					int dy, dx;
+					int vr = SCREENHEIGHT - 32;
+					unsigned short *s16p = (unsigned short *)screens16;
+					volatile unsigned short *gvA =
+					    (volatile unsigned short *)GVRAM_BASE;
+					volatile unsigned short *gvB =
+					    (volatile unsigned short *)(GVRAM_BASE + 256*1024);
+					for (dy = 0; dy < vr; dy++)
+						for (dx = 1; dx < SCREENWIDTH; dx += 2) {
+							s16p[dy * SCREENWIDTH + dx] = 0;
+							gvA[dy * 512 + dx] = 0;
+							gvB[dy * 512 + dx] = 0;
+						}
+				}
+				was_overlay = 1;
 #ifdef DELTA_BLIT
 				shadow_dirty = 1;
 #endif

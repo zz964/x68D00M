@@ -216,6 +216,7 @@ extern int use_vsync;
 extern int show_fps;
 extern int music_mode;
 extern int video_mode;
+extern int show_crosshair;
 #ifdef DELTA_BLIT
 extern int use_delta_blit;
 #endif
@@ -311,6 +312,7 @@ default_t defaults[] =
 	{"show_fps",&show_fps, 0},
 	{"music_mode",&music_mode, -1},
 	{"video_mode",&video_mode, 2},
+	{"show_crosshair",&show_crosshair, 1},
 #ifdef DELTA_BLIT
 	{"use_delta_blit",&use_delta_blit, 1},
 #endif
