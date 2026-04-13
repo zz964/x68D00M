@@ -350,6 +350,9 @@ void M_ToggleMouseWalk(int choice);
 void M_ToggleVSync(int choice);
 void M_ToggleFPS(int choice);
 void M_CycleVideoMode(int choice);
+#ifdef DELTA_BLIT
+void M_ToggleDeltaBlit(int choice);
+#endif
 
 enum
 {
@@ -365,6 +368,9 @@ enum
         opt_vsync,
         opt_fps,
         opt_videomode,
+#ifdef DELTA_BLIT
+        opt_deltablit,
+#endif
         opt_end
 } options_e;
 
@@ -381,7 +387,10 @@ menuitem_t OptionsMenu[]=
         {1,"",      M_ToggleMouseWalk,'v'},
         {1,"",      M_ToggleVSync,'y'},
         {1,"",      M_ToggleFPS,'f'},
-        {1,"",      M_CycleVideoMode,'v'}
+        {1,"",      M_CycleVideoMode,'v'},
+#ifdef DELTA_BLIT
+        {1,"",      M_ToggleDeltaBlit,'d'}
+#endif
 };
 
 menu_t OptionsDef =
@@ -390,7 +399,7 @@ menu_t OptionsDef =
         &MainDef,
         OptionsMenu,
         M_DrawOptions,
-        60,27,
+        60,21,
         0,
         11              /* lineheight: compact for small text font */
 };
@@ -1079,6 +1088,14 @@ void M_DrawOptions(void)
                 M_WriteText(x, y + lh*opt_videomode + 1,
                             (char *)vmode_names[idx]);
         }
+#ifdef DELTA_BLIT
+        {
+                extern int use_delta_blit;
+                M_WriteText(x, y + lh*opt_deltablit + 1,
+                            use_delta_blit ? "DRAW ONLY CHANGED PIXELS: ON"
+                                           : "DRAW ONLY CHANGED PIXELS: OFF");
+        }
+#endif
 }
 
 void M_ToggleMouseWalk(int choice)
@@ -1115,6 +1132,18 @@ void M_ToggleVSync(int choice)
         else
             players[consoleplayer].message = "VSync off";
 }
+
+#ifdef DELTA_BLIT
+void M_ToggleDeltaBlit(int choice)
+{
+        extern int use_delta_blit;
+        use_delta_blit = !use_delta_blit;
+        if (use_delta_blit)
+            players[consoleplayer].message = "Delta blit on";
+        else
+            players[consoleplayer].message = "Delta blit off";
+}
+#endif
 
 void M_Options(int choice)
 {

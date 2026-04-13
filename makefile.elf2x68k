@@ -168,6 +168,7 @@ endif
 
 # CFLAGS += -DDOOM_LOG
 CFLAGS += -DOPM_NO_FILE_LOADER
+CFLAGS += -DDELTA_BLIT
 # elf2x68k uses ELF symbols without underscore prefix.
 CFLAGS += -DASM_SYM_FM_INV65536='"FM_INV65536"'
 

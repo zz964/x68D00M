@@ -216,6 +216,9 @@ extern int use_vsync;
 extern int show_fps;
 extern int music_mode;
 extern int video_mode;
+#ifdef DELTA_BLIT
+extern int use_delta_blit;
+#endif
 
 extern int screenblocks;
 
@@ -308,6 +311,9 @@ default_t defaults[] =
 	{"show_fps",&show_fps, 0},
 	{"music_mode",&music_mode, -1},
 	{"video_mode",&video_mode, 2},
+#ifdef DELTA_BLIT
+	{"use_delta_blit",&use_delta_blit, 1},
+#endif
 
 	{"chatmacro0", (int *) &chat_macros[0], (int) HUSTR_CHATMACRO0 },
 	{"chatmacro1", (int *) &chat_macros[1], (int) HUSTR_CHATMACRO1 },

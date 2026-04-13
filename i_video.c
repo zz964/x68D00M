@@ -81,6 +81,9 @@ char errmsg[1024];
 short *gvram0 = (short*)GVRAM0;
 byte oldTVPal[32];
 byte *screens16 = NULL;  /* 16-bit GVRAM-format framebuffer (128KB, HIMEM) */
+#ifdef DELTA_BLIT
+int use_delta_blit = 1;  /* on by default; toggle in Options menu */
+#endif
 
 /* ---- Video mode table ---- */
 int video_mode = 2;  /* 0=15kHz, 1=25kHz, 2=31kHz (default) */
@@ -893,6 +896,9 @@ void I_FinishUpdate(void)
 			if (detailLevel != prev_detail) {
 				if (detailLevel == 1)
 					lowdetail_dirty = 1;
+#ifdef DELTA_BLIT
+				shadow_dirty = 1;
+#endif
 				prev_detail = detailLevel;
 			}
 			if (scaledviewwidth != prev_viewwidth) {
@@ -963,6 +969,23 @@ void I_FinishUpdate(void)
 
 				if (scaledviewwidth == SCREENWIDTH) {
 					/* Full width: fast ASM blit */
+#ifdef DELTA_BLIT
+					if (use_delta_blit && shadow16) {
+						if (shadow_dirty) {
+							memset(shadow16, 0xFF,
+							       SCREENWIDTH * SCREENHEIGHT * 2);
+							shadow_dirty = 0;
+						}
+						if (detailLevel == 1)
+							I_BlitCopy16_LowDetail_Delta(
+							    (const unsigned short *)screens16,
+							    shadow16, gvram0, view_rows);
+						else
+							I_BlitCopy16_Delta(
+							    (const unsigned short *)screens16,
+							    shadow16, gvram0, view_rows);
+					} else
+#endif
 					if (detailLevel == 1)
 						I_BlitCopy16_LowDetail(
 						    (const unsigned short *)screens16,

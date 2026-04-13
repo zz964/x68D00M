@@ -771,7 +771,7 @@ IBD16_skip:
         dbf     d4,IBD16_px
         lea     (1024,a3),a1          * GVRAM next row (1024-byte stride)
         subq.l  #1,d5
-        bgt.b   IBD16_row
+        bgt     IBD16_row
 .if PROF_COUNTERS
         move.l  d1,_g_delta_changed
         movem.l (sp)+,d1/d4/d5/a2/a3

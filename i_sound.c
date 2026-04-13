@@ -322,7 +322,7 @@ static void convert_sfx_adpcm(int sfxid)
  * Cache is invalidated when WAD, sample rate, or volume levels change. */
 
 #define SFX_CACHE_MAGIC   0x58364643  /* "X6FC" */
-#define SFX_CACHE_VERSION 3
+#define SFX_CACHE_VERSION 4           /* bump to invalidate old caches */
 
 typedef struct {
     uint32_t magic;
