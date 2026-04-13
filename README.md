@@ -1,4 +1,3 @@
-```
 # x68D00M - Optimized Doom port for accelerated Sharp x68000 computers.
 
 My intent in creating this port was to create something nice that could take advantage of
@@ -15,11 +14,9 @@ like Doom, but it's not THAT competant.
 PhantomX, on the other hand, when emulating a 400mhz 68030, can run the game actually  
 pretty well.  Thanks to the GVRAM bottleneck, which is actually even higher with PhantomX,  
 I still only get 18-22fps at high detail.  Fortunately it doesn't drop much in intense scenes  
-and low detail brings it up to a locked 35fps.  Unfortunately, the game randomly crashes for me 
-on PhantomX in an odd manner.  The music code, which runs from a regular interrupt, keeps going,  
-but the main game loop just stops.  I've only ever seen the crash happen on PhantomX.  I  
-haven't been able to solve this one yet and it may or may not even be my code's fault.  I doubt  
-many programs push the PhantomX this hard.
+and low detail brings it up to a locked 35fps.  I've seen crashes on PhantomX, but I have 
+reason to believe it has to do with my specific x68000 XVI's hardware configuration.  If anyone
+else experiences PhantomX crashes, please let me know.
 
 NOTE: This port requires a 68030 or better CPU. The stock 68000 in most X68000 models is 
 NOT fast enough to run Doom and I didn't compile for it and I didn't create compatible assembly. 
@@ -145,8 +142,8 @@ Expected frame rates at E1M1 start position:
 | Hardware                                                   | Detail | Size | FPS       |
 | ---------------------------------------------------------- | ------ | ---- | --------- |
 | 060turbo (50 MHz)                                          | High   | Full | 15        |
-| PhantomX on XVI 16mhz, 060 mode (RPi 4B). Unstable for me. | High   | Full | 16        |
-| PhantomX on XVI 16mhz, 030 mode (RPi 4B). Unstable for me. | High   | Full | 20-21     |
+| PhantomX on XVI 16mhz, 060 mode (RPi 4B).                  | High   | Full | 16        |
+| PhantomX on XVI 16mhz, 030 mode (RPi 4B).                  | High   | Full | 20-22     |
 | X68030 (25 MHz)                                            | Low    | Min  | ~18       |
 | XM6g emulator (68060 50 MHz, 2x mult)                      | High   | Full | 26        |
 | XM6g emulator (68060 200 MHz, 4x mult)                     | High   | Full | 35 locked |
@@ -254,66 +251,61 @@ editor, save, and restart the game.
 | VSync             | Vertical sync on/off                             |
 | FPS Counter       | Show frame rate counter                          |
 | Video Mode        | 15kHz / 25kHz / 31kHz display mode               |
+| Draw Only Changed Pixels | Skip unchanged pixels during GVRAM blit (default on). Improves FPS when standing still or moving slowly, as unchanged pixels avoid the slow GVRAM write. May slightly decrease FPS during fast movement or rapid turning when nearly every pixel changes, due to the overhead of comparing each pixel. Best results on hardware with a high CPU-to-GVRAM speed ratio (e.g. PhantomX). |
 
 
 ## Building from Source
 
-Requires the xdev68k cross-compilation toolchain and WSL (Windows
-Subsystem for Linux) or a native Linux environment. WSL is needed
-because `run68` (an X68000 CPU emulator that hosts the HAS060
-assembler and HLK linker) is a Linux ELF binary. A Windows-native
-build would be possible with a Windows port of `run68`.
-
-Tip: Claude Code (claude.ai/code) can handle the entire build and
-deploy process. Point it at this repo, give it access to WSL, and
-it will build both targets for you.
+Requires the [elf2x68k](https://github.com/yunkya2/elf2x68k) cross-compilation
+toolchain.  elf2x68k provides a standard GCC cross-compiler (m68k-xelf-gcc)
+that produces X68000 .x executables directly.  It runs natively on Windows
+(MSYS2/MinGW), Linux, and macOS -- no emulation layer or WSL required.
 
 ### Setup
 
-1. Install WSL with a Linux distribution (e.g. Ubuntu)
-2. Clone or download the xdev68k toolchain:
-  [https://github.com/yosio68k/xdev68k](https://github.com/yosio68k/xdev68k)
-3. Build xdev68k following its README instructions (builds m68k-elf-gcc,
-  HAS060.X, HLK, and run68 inside WSL)
-4. Note the path to the xdev68k-main directory
+1. Download elf2x68k from [https://github.com/yunkya2/elf2x68k](https://github.com/yunkya2/elf2x68k)
+2. Extract and add the `m68k-xelf/bin` directory to your PATH
+3. On Windows, install [MSYS2](https://www.msys2.org/) for `make`, `sed`,
+   and `python3` (used by the build scripts)
 
 ### Building
 
-**Note:** Replace the paths below with your actual paths. WSL maps
-Windows drives as `/mnt/c/`, `/mnt/d/`, etc. For example,
-`C:\Doom\x68D00M` becomes `/mnt/c/Doom/x68D00M`.
-
-From a WSL bash shell:
+From a bash shell (MSYS2 on Windows, or native on Linux/macOS):
 
 ```bash
 # cd to the x68D00M source directory
-cd /mnt/c/Doom/x68D00M
-
-# Set toolchain path
-export XDEV68K_DIR=/mnt/c/Doom/xdev68k-main
+cd /path/to/x68D00M
 
 # Build 68060 version -> doom060.x
-make -f makefile.x68k
+make -f makefile.elf2x68k
 
 # Build 68030 version -> doom.x
-make -f makefile.x68k TARGET=030
+make -f makefile.elf2x68k TARGET=030
 
 # Clean build artifacts
-make -f makefile.x68k clean
+make -f makefile.elf2x68k clean
 ```
 
-Or as a one-liner from Windows cmd/PowerShell:
+By default, the makefile expects the elf2x68k toolchain at
+`c:/Doom_Source/m68k-xelf`.  Override with:
 
-```cmd
-wsl -e bash -c "cd /mnt/c/Doom/x68D00M && export XDEV68K_DIR=/mnt/c/Doom/xdev68k-main && make -f makefile.x68k -j4"
+```bash
+make -f makefile.elf2x68k ELF2X68K_DIR=/path/to/m68k-xelf
 ```
 
 ### Output
 
-Executables are created in the source directory (same directory as makefile.x68k):
+Executables are created in the source directory:
 
 - `doom.x` -- 68030 build (default for most users)
 - `doom060.x` -- 68060 build (060turbo, real 68060 hardware)
+
+### Legacy xdev68k build
+
+The older xdev68k-based build (makefile.x68k) is still included but
+no longer recommended.  It requires WSL and the xdev68k toolchain,
+and produced intermittent "file can not be executed" errors due to
+alignment-sensitive output from the HLK linker.
 
 ## 060turbo Configuration
 
@@ -365,14 +357,6 @@ PhantomX SD card's WindrvXM shared folder and run from there.
 Loading from SCSI/CF storage goes through the X68000 system bus
 and is significantly slower.
 
-NOTE: The game randomly crashes on PhantomX for me.  Sometimes it will
-run for many levels without issue, then sometimes it will crash within
-the first level several times in a row.  I have been unable to
-replicate the crash on either 060turbo or xm6g, but I've had it crash
-many times on PhantomX in both 060 and 030 mode.  I don't think it's a 
-bug in my code since it only happens on PhantomX, but I can't rule it 
-out, either.  I spent a long time looking but I can't find anything. 
-
 ## License
 
 This port is based on the Doom source code released by id Software  
@@ -399,5 +383,4 @@ and some very useful help with bugs post release.
 
 The Amiga Doom ports (ADoom by Peter McGavin, DoomAttack by Cosmos)
 provided valuable reference for optimizing Doom on 68k hardware.
-```
 
