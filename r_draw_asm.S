@@ -1236,7 +1236,8 @@ RDP_done:
         * ----------------------------------------------------------
 RDP_sky:
         move.l  _pspriteiscale,d0
-        * detailshift removed: always 0 with X68_NO_LOWDETAIL
+        move.l  _detailshift,d1
+        lsr.l   d1,d0                   * pspriteiscale >> detailshift
         move.l  d0,_dc_iscale
         move.l  _colormaps,d0
         move.l  d0,_dc_colormap
