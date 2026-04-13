@@ -74,6 +74,20 @@ int main(int argc, char** argv)
 	b_ssp = B_SUPER(0);
 	dlog("B_SUPER(0) returned b_ssp=%d", (int)b_ssp);
 
+	/* Verify and protect the bus error vector.  A previous crash or
+	 * misbehaving program may have zeroed it.  If it's zero, restore
+	 * it from the address error vector (which has the same handler on
+	 * stock Human68k).  This prevents PC=0 crashes on bus errors. */
+	{
+		volatile uint32_t *buserr_vec = (volatile uint32_t *)0x00000008;
+		volatile uint32_t *addrerr_vec = (volatile uint32_t *)0x0000000C;
+		if (*buserr_vec == 0 && *addrerr_vec != 0) {
+			dlog("WARNING: bus error vector was NULL, restoring from address error vector ($%08lX)",
+			     (unsigned long)*addrerr_vec);
+			*buserr_vec = *addrerr_vec;
+		}
+	}
+
 #ifdef TARGET_68060
 	/* Reject known-incompatible CPUs (68000-68040).
 	 * 68040 FPU is not compatible with 68060 FPU instructions.

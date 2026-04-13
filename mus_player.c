@@ -103,7 +103,7 @@ static mus_chan_t     mus_channels[16];
 static opm_voice_t   opm_voices[OPM_NUM_CHANNELS];
 
 /* Timing */
-static volatile uint32_t timer_ticks;  /* incremented by ISR at ~140 Hz */
+volatile uint32_t timer_ticks;  /* incremented by ISR at ~140 Hz; read by I_GetTime */
 static int               start_gametic;
 static uint32_t          ticks_consumed;
 
@@ -718,8 +718,7 @@ void MUS_Start(const void *data, int looping)
     mus_playing = 1;
     mus_paused = 0;
     start_gametic = gametic;
-    timer_ticks = 0;
-    ticks_consumed = 0;
+    ticks_consumed = timer_ticks;  /* resume from current position, don't reset */
 
     timer_start();
 }
@@ -779,10 +778,9 @@ void MUS_Pause(void)
 void MUS_Resume(void)
 {
     if (mus_playing && mus_paused) {
-        /* Resync both tick sources */
+        /* Resync: resume from current tick position */
         start_gametic = gametic;
-        timer_ticks = 0;
-        ticks_consumed = 0;
+        ticks_consumed = timer_ticks;
         mus_paused = 0;
     }
 }

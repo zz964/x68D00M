@@ -219,15 +219,37 @@ byte* I_ZoneBase (int*  size)
 /* */
 int  I_GetTime (void)
 {
-	/* ONTIME() returns a counter in centiseconds (100 Hz, 10 ms per tick).
-	 * Use -1 as the uninitialised sentinel: using 0 fails when ONTIME()
-	 * itself returns 0 at boot, which would reset basetime every frame and
-	 * make the game think hundreds of tics need to run each loop iteration. */
-	static int basetime = -1;
-	int thistime = ONTIME();
-	if (basetime < 0)
-		basetime = thistime;
-	return (thistime - basetime) * TICRATE / 100;
+	/* Music ISR runs at 140 Hz (OPM Timer-A).  140 / 4 = 35 = TICRATE exactly.
+	 * This gives jitter-free game timing, unlike ONTIME (100 Hz) which doesn't
+	 * divide evenly into 35 Hz (some tics 20ms, others 30ms).
+	 *
+	 * Falls back to ONTIME before the music timer starts (title screen).
+	 * When switching, base_ticks is set so the return value continues
+	 * seamlessly from the ONTIME-derived value (no backward jump). */
+	extern volatile uint32_t timer_ticks;
+	static int ontime_base = -1;
+	static uint32_t music_base = 0;
+	static int music_offset = 0;
+	static int using_music = 0;
+
+	if (!using_music) {
+		/* ONTIME fallback */
+		int thistime = ONTIME();
+		if (ontime_base < 0)
+			ontime_base = thistime;
+		int current = (thistime - ontime_base) * TICRATE / 100;
+
+		if (timer_ticks > 0) {
+			/* Music timer just started -- switch to it.
+			 * Set offset so music timer continues from current value. */
+			using_music = 1;
+			music_base = timer_ticks;
+			music_offset = current;
+		}
+		return current;
+	}
+
+	return music_offset + (int)((timer_ticks - music_base) / 4);
 }
 
 
