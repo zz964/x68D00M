@@ -39,3 +39,4 @@
 *.x.map
 *.bak
 _build/
+_build_elf/
