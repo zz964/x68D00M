@@ -158,6 +158,7 @@ RDC_mul_cont:
         addq.l  #1,d7                   * d7 = count
         subq.l  #3,d7                   * d7 = count - 3
         blt     RDC_tail_check          * count < 3: skip to tail
+        bra     RDC_3loop               * jump over alignment padding
 
         * ------- 3-pixel loop (16-bit colormap16 output) -------
         * colormap16[idx] via (a2,dN.l*2): word read with *2 scale.
@@ -829,76 +830,6 @@ IBDLD_skip:
 .else
         movem.l (sp)+,d4/d5/a2/a3
 .endif
-        rts
-
-* ---------------------------------------------------------------------------
-* I_CachePushAll -- moved to i_system.c (C implementation).
-* Now runtime-gated by g_cache_flush so the 030 build can flush on PhantomX.
-* ---------------------------------------------------------------------------
-
-* ---------------------------------------------------------------------------
-* I_BlitExpand -- expand 8-bit palette screen to 16-bit GVRAM pixel buffer.
-*   void I_BlitExpand(const byte *src, unsigned short *dst,
-*                     int rows, const unsigned short *remap)
-*   src   (4,sp): pointer to screens[0] (8-bit, SCREENWIDTH*rows bytes)
-*   dst   (8,sp): pointer to screens_expanded (16-bit, SCREENWIDTH*rows words)
-*   rows (12,sp): number of rows to expand (168 or 200)
-*   remap(16,sp): pixel_remap16[] lookup table (256 unsigned short entries)
-*
-* 4-pixel unrolled; ~2 cycles/pixel.
-* ---------------------------------------------------------------------------
-        .globl  _I_BlitExpand
-_I_BlitExpand:
-        movem.l d3/d4/d5/d6/a2/a3,-(sp)    * save 6 regs (24 bytes)
-        movea.l (28,sp),a0              * src
-        movea.l (32,sp),a1              * dst
-        move.l  (36,sp),d5              * rows
-        movea.l (40,sp),a2              * remap table
-
-        * rows * (SCREENWIDTH/4) = rows * 80 iterations of 4 pixels
-        mulu.w  #80,d5
-        subq.l  #1,d5                   * DBF count
-
-        moveq   #0,d0
-        moveq   #0,d1
-        moveq   #0,d2
-        moveq   #0,d3
-
-IBE_loop:
-        move.b  (a0)+,d0
-        move.b  (a0)+,d1
-        move.b  (a0)+,d2
-        move.b  (a0)+,d3
-        move.w  (a2,d0.l*2),d4
-        move.w  (a2,d1.l*2),d6
-        move.w  d4,(a1)+
-        move.w  d6,(a1)+
-        move.w  (a2,d2.l*2),d4
-        move.w  (a2,d3.l*2),d6
-        move.w  d4,(a1)+
-        move.w  d6,(a1)+
-        dbf     d5,IBE_loop
-
-        movem.l (sp)+,d3/d4/d5/d6/a2/a3
-        rts
-
-* ---------------------------------------------------------------------------
-* I_DisableInts -- mask all maskable interrupts (IPM = 7).
-*   void I_DisableInts(void)
-* Saves nothing; caller must pair with I_EnableInts.
-* ---------------------------------------------------------------------------
-        .globl  _I_DisableInts
-_I_DisableInts:
-        ori.w   #$0700,sr
-        rts
-
-* ---------------------------------------------------------------------------
-* I_EnableInts -- unmask all maskable interrupts (IPM = 0).
-*   void I_EnableInts(void)
-* ---------------------------------------------------------------------------
-        .globl  _I_EnableInts
-_I_EnableInts:
-        andi.w  #$F8FF,sr
         rts
 
 

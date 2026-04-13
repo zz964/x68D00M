@@ -40,6 +40,12 @@
 
 typedef int fixed_t;
 
+/* ASM symbol name for FM_INV65536 constant.
+ * xdev68k (HAS/HLK) uses underscore prefix; elf2x68k (ELF) does not. */
+#ifndef ASM_SYM_FM_INV65536
+#define ASM_SYM_FM_INV65536 "_FM_INV65536"
+#endif
+
 #ifdef TARGET_68060
 /* Inline FixedMul for 68060: native FPU, ~6 cycles.
  * Eliminates ~20 cycles of jsr/rts overhead per call. */
@@ -49,7 +55,7 @@ static inline fixed_t FixedMul(fixed_t a, fixed_t b)
     __asm__ volatile (
         "fmove.l %1,%%fp0\n\t"
         "fmul.l  %2,%%fp0\n\t"
-        "fmul.s  _FM_INV65536,%%fp0\n\t"
+        "fmul.s  " ASM_SYM_FM_INV65536 ",%%fp0\n\t"
         "fmove.l %%fp0,%0"
         : "=d"(result)
         : "d"(a), "d"(b)

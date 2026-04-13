@@ -59,7 +59,6 @@ static const char
 #include <stdio.h>
 #include "w_wad.h"
 #include "z_zone.h"
-#include "dmac.h"
 #include "i_prof_timer.h"
 char errmsg[1024];
 #include <string.h>
@@ -161,69 +160,6 @@ void I_InitPixelRemap16(void)
 		}
 	}
 }
-
-/* -----------------------------------------------------------------------
- * Async DMA blit (TODO-3b implementation) -- currently DISABLED (g_dma_working=0)
- *
- * Design: CPU expand + HD63450 DMAC array-chain, fully overlapped with render.
- *
- *   screens[0]          -- 8-bit Doom render target (unchanged, single buffer)
- *   screens_expanded[]  -- 16-bit pre-remapped staging buffer (local RAM)
- *   blit_chain[]        -- 2 HD63450 array-chain entries per game row:
- *                            entry 2y  : 320 game pixels from screens_expanded row y
- *                            entry 2y+1: 192 zero-words (filler to advance DAR by
- *                                        1024 - 640 = 384 bytes to the next GVRAM row)
- *   zero_pad[]          -- 192 zero shorts shared by all filler entries
- *
- * GVRAM chain layout (15 kHz 320x240 mode):
- *   GVRAM_ROW_STRIDE = 1024 bytes = 512 pixels * 2 bytes/pixel.
- *   The X68000 256-colour GVRAM is 512 pixels wide (512 shorts per row).
- *   Confirmed by reference port: GVRAMWIDTH = 512 shorts = 1024 bytes.
- *   The old 31 kHz code used R20=0x115 (interlaced) with stride=2048, which
- *   wrote game rows to every second physical GVRAM row (even field only).
- *   On a CRT the even/odd fields merged correctly.  In non-interlaced 15 kHz
- *   mode (R20=0x110) every GVRAM row is displayed once, so stride must equal
- *   the true physical row size: 1024 bytes.
- *   Each game row occupies 320 words (640 bytes) in GVRAM.
- *   Filler = (1024 - 640) / 2 = 192 words per row.
- *
- * Cache coherency:
- *   060turbo -cm1 (copy-back cache): screens_expanded dirty lines must be
- *   flushed to RAM before DMAC reads them.  I_CachePushAll() (r_draw_asm.S)
- *   issues CPUSHA DC (~0.08 ms) immediately before each DMA kick.
- * ----------------------------------------------------------------------- */
-#define GVRAM_ROW_STRIDE    1024                    /* bytes: 512 px * 2 B/px (physical row)  */
-#define GVRAM_ROW_WORDS     (SCREENWIDTH)           /* 320 words of game pixels               */
-#define GVRAM_FILLER_WORDS  ((GVRAM_ROW_STRIDE - GVRAM_ROW_WORDS * 2) / 2)  /* 704 */
-#define DMA_MAX_ROWS        SCREENHEIGHT            /* 200: chain covers full screen */
-#define DMA_CHAIN_ENTRIES   (DMA_MAX_ROWS * 2)      /* 400: 2 entries per row       */
-
-/* Staging buffer: 16-bit expanded pixels, compact layout (stride = SCREENWIDTH words).
- * Allocated from local RAM in I_InitGraphics. */
-static unsigned short *screens_expanded = NULL;
-
-/* Zero-padding buffer shared by all filler chain entries. */
-static unsigned short  zero_pad[GVRAM_FILLER_WORDS];
-
-/* Array-chain descriptor table for the HD63450 DMAC. */
-static dma_chain_t     blit_chain[DMA_CHAIN_ENTRIES];
-
-/* Non-zero when a DMA transfer is in flight.  Polled at the top of
- * I_FinishUpdate; expected to be zero by the time the next render finishes. */
-static volatile int    g_dma_active = 0;
-
-/* Set to 0 if DMA is confirmed broken on this run; reverts to I_BlitBlock. */
-static int             g_dma_working = 1;
-
-/* Flag set by _I_DMACompletionISR (in r_draw_asm.S) when channel 2 fires.
- * Polled in local RAM -- much faster than polling DMAC CSR via system bus. */
-volatile uint8_t       g_dma_done = 0;
-
-/* Saved interrupt vector $68 ($001A0) while our ISR is installed. */
-static uint32_t        g_saved_vec68 = 0;
-
-/* Diagnostics: log register state for the first few frames. */
-static int             g_dma_diag_count = 0;
 
 
 /*dosstuff -newly added */
@@ -526,39 +462,6 @@ int g_perf_masked_tics = 0;
  * 168 rows (the 3-D view) are blitted, saving ~16% of total blit time. */
 int st_needs_blit = 1;
 
-/* Assembly helpers declared in r_draw_asm.S */
-extern void I_BlitExpand(const byte *src, unsigned short *dst,
-                         int rows, const unsigned short *remap);
-extern void I_DMACompletionISR(void);   /* installed at vector $68 during DMA */
-extern void I_DisableInts(void);        /* ori.w #$0700,sr -- mask all ints  */
-extern void I_EnableInts(void);         /* andi.w #$F8FF,sr -- unmask all    */
-
-/*
- * I_DMAInit -- abort any leftover IOCS transfer at startup.
- * All DMAC registers are programmed every frame in I_FinishUpdate
- * to survive IOCS reprogramming between frames (disk/audio DMA).
- */
-static void I_DMAInit(void)
-{
-    /* Stop any transfer the OS may have left running on channel 2. */
-    DMAC_CH2_B(DMAC_OFF_CCR) = DMAC_CCR_SAB;
-    /* Clear status (W1C). */
-    DMAC_CH2_B(DMAC_OFF_CSR) = DMAC_CSR_CLEAR;
-    dlog("DMA startup abort: CSR=$%02x CER=$%02x",
-         (unsigned)DMAC_CH2_B(DMAC_OFF_CSR),
-         (unsigned)DMAC_CH2_B(DMAC_OFF_CER));
-    dlog("DMA sizeof(dma_chain_t)=%d (must be 6)",
-         (int)sizeof(dma_chain_t));
-
-    /* DMA blit is disabled: the GVRAM row stride (2048 words, only 320
-     * used per row) forces 68% of DMA bandwidth to write filler zeros.
-     * Total DMA transfer is 172,032 words vs 53,760 for I_BlitBlock.
-     * At bus speed DMA takes ~28 ms vs ~13 ms for I_BlitBlock.
-     * Additionally, an IOCS ISR fires once per frame (~14 ms after kick)
-     * and aborts channel 2 via SAB, so async DMA never completes cleanly.
-     * Use I_BlitBlock (CPU blit, direct GVRAM write) for all frames. */
-    g_dma_working = 0;
-}
 
 static int lowdetail_dirty = 1;  /* set when low-detail odd columns need re-clearing */
 /* Delta blit: compare-before-write to skip unchanged GVRAM pixels.
@@ -882,32 +785,6 @@ void I_FinishUpdate(void)
 		} /* menuactive scope */
 	}
 
-	/* ---------------------------------------------------------------
-	 * Key timing findings (060turbo bus bridge):
-	 *
-	 *  - DMAC cycle-steal (XRM=10): completes in ~11 ms real time when
-	 *    interrupts are disabled (measured from blit tic counter).
-	 *  - With interrupts ENABLED the tight CSR poll loop runs ~44x
-	 *    slower (~500 ms) because an ISR fires constantly and adds
-	 *    ~7 us overhead per iteration.  Root cause unknown but the
-	 *    interrupt hammers the poll even in cycle-steal mode.
-	 *  - IOCS clears channel-2 CSR (via SAB + register reset) after
-	 *    our DMA completes, so CSR bits are unreliable in async mode.
-	 *  - HOWEVER: IOCS _DMAMOVE (non-chain) does NOT write the BTC
-	 *    register.  Our BTC counter decrements from chain_entries to 0
-	 *    when all entries complete, and IOCS leaves it at 0.
-	 *    => BTC_rem == 0 is the RELIABLE async completion indicator.
-	 *
-	 * ASYNC DESIGN:
-	 *   STEP 1  Check previous frame's DMA via BTC_rem (one fast read,
-	 *           ~15 us interrupt-disable window -- negligible timer miss).
-	 *           If BTC_rem > 0 (rare IOCS chain DMA interference), fall
-	 *           back to I_BlitBlock for THIS frame; do not disable DMA.
-	 *   STEP 2  Expand screens[0]->screens_expanded (local bus, ~4 ms),
-	 *           flush cache, program DMAC, kick, return immediately.
-	 *           DMA runs concurrently with the next frame's render (~25 ms),
-	 *           finishing well before the next I_FinishUpdate call.
-	 * --------------------------------------------------------------- */
 	/* 'H' key dump: write raw screens16 values + PLAYPAL to framedump.txt.
 	 * Scan code 35 = 'H'. BITSNS group 4, bit 3 (0x08).
 	 * Disabled by default; change #if 0 to #if 1 to re-enable. */
@@ -952,79 +829,13 @@ void I_FinishUpdate(void)
 		            ? (SCREENHEIGHT - 32) : SCREENHEIGHT;
 	}
 
-	/* ---------------------------------------------------------------
-	 * STEP 1: Wait for the PREVIOUS frame's async DMA to finish.
-	 *
-	 * We rely on BTC_rem == 0, not CSR flags.  IOCS _DMAMOVE (non-chain)
-	 * does NOT write the BTC register, so BTC_rem stays 0 after our
-	 * chain completes even if IOCS has cleared all CSR bits.
-	 *
-	 * Read BTC_rem with a very brief interrupt-disable window (~15 us)
-	 * to prevent a race where IOCS writes BTC between our sample and
-	 * our decision.  Timer miss: 15 us / 20 ms period = 0.075%.
-	 *
-	 * If BTC_rem > 0 the chain was aborted mid-flight (extremely rare,
-	 * requires another driver to call _DMAMOV_A with chain DMA on
-	 * channel 2).  Fall back to I_BlitBlock for this frame; DMA is
-	 * NOT disabled so we keep trying every frame.
-	 * --------------------------------------------------------------- */
-	if (g_dma_active)
-	{
-		uint16_t btc_rem;
-		I_DisableInts();
-		btc_rem = DMAC_CH2_W(DMAC_OFF_BTC);
-		DMAC_CH2_B(DMAC_OFF_CSR) = DMAC_CSR_CLEAR;
-		I_EnableInts();
-		g_dma_active = 0;
-
-		if (btc_rem != 0)
-		{
-			/* Chain aborted mid-flight -- fall through to I_BlitBlock. */
-			extern void I_BlitBlock(const byte *src, short *dst,
-			                        int rows, const unsigned short *remap);
-			if (g_dma_diag_count < 20)
-			{
-				dlog("DMA async: prev DMA aborted BTC_rem=%u --"
-				     " I_BlitBlock fallback this frame",
-				     (unsigned)btc_rem);
-				g_dma_diag_count++;
-			}
-			DMAC_CH2_B(DMAC_OFF_CCR) = DMAC_CCR_SAB; /* abort stray DMA */
-			{
-				int t_blit = I_GetTimeCs();
-				uint32_t _us_blit = I_GetTimeUs();
-				I_BlitBlock(screens[0], gvram0, blit_rows, pixel_remap16);
-				g_perf_blit_tics += I_GetTimeCs() - t_blit;
-				g_perf_blit_us += I_GetTimeUs() - _us_blit;
-				st_needs_blit = 0;
-			}
-			return;
-		}
-		/* BTC_rem == 0: previous frame's DMA completed; GVRAM is current. */
-	}
-
-	/* ---------------------------------------------------------------
-	 * STEP 2: Blit to GVRAM.
-	 *
-	 * DMA path (g_dma_working=1):
-	 *   a. Expand screens[0] (8-bit) -> screens_expanded (16-bit) on
-	 *      the fast local bus (~4 ms, no system bus activity).
-	 *   b. Flush 68060 copy-back cache (cpusha dc).
-	 *   c. Program DMAC channel 2 and kick.  Return IMMEDIATELY.
-	 *      The DMA runs concurrently with the next frame's render
-	 *      (~25 ms render >> ~11 ms DMA), so by the next call to
-	 *      I_FinishUpdate the DMA is already done (BTC_rem == 0).
-	 *
-	 * CPU fallback (g_dma_working=0):
-	 *   I_BlitBlock -- synchronous, proven.
-	 * --------------------------------------------------------------- */
+	/* Blit to GVRAM. */
 	{
 #ifdef DOOM_LOG
 		int t_blit = I_GetTimeCs();
 		uint32_t _us_blit = I_GetTimeUs();
 #endif
 
-		if (!g_dma_working)
 		{
 			/* Double-buffer vsync: blit to back buffer, then flip
 			 * Y scroll at vblank so the monitor always shows a
@@ -1256,100 +1067,6 @@ void I_FinishUpdate(void)
 			return;
 		}
 
-		/* 2a. Expand 8-bit palette indices -> 16-bit GVRAM words.
-		 *     Runs entirely on the local bus; no system bus contention. */
-		I_BlitExpand(screens[0], screens_expanded, blit_rows, pixel_remap16);
-
-		/* 2b. Push 68060 copy-back cache so DMAC reads coherent data. */
-#ifdef TARGET_68060
-		__asm__ volatile ("cpusha dc");
-#endif
-
-		/* 2c. Program and kick DMAC channel 2. */
-		{
-			int chain_entries = blit_rows * 2;
-			uint8_t csr_after_str;
-			int abort_wait;
-
-			DMAC_CH2_B(DMAC_OFF_CCR) = DMAC_CCR_SAB;
-			abort_wait = 10000;
-			while ((DMAC_CH2_B(DMAC_OFF_CSR) & DMAC_CSR_ACT) && --abort_wait > 0)
-				;
-			DMAC_CH2_B(DMAC_OFF_CCR) = 0x00;
-			DMAC_CH2_B(DMAC_OFF_CSR) = DMAC_CSR_CLEAR;
-
-			DMAC_CH2_B(DMAC_OFF_DCR) = DMAC_DCR_STEAL_16;
-			DMAC_CH2_B(DMAC_OFF_OCR) = DMAC_OCR_M2D_W16_ACHAIN;
-			DMAC_CH2_B(DMAC_OFF_SCR) = DMAC_SCR_INC_INC;
-			DMAC_CH2_B(DMAC_OFF_MFC) = DMAC_FC_SUPER_DATA;
-			DMAC_CH2_B(DMAC_OFF_DFC) = DMAC_FC_SUPER_DATA;
-			DMAC_CH2_B(DMAC_OFF_BFC) = DMAC_FC_SUPER_DATA;
-			DMAC_CH2_B(DMAC_OFF_NIV) = DMAC_NIV_CH2;
-			DMAC_CH2_B(DMAC_OFF_EIV) = DMAC_EIV_CH2;
-			DMAC_CH2_B(DMAC_OFF_CPR) = 0x00;
-
-			DMAC_CH2_L(DMAC_OFF_DAR) = (uint32_t)GVRAM_BASE;
-			DMAC_CH2_L(DMAC_OFF_BAR) = (uint32_t)(uintptr_t)blit_chain;
-			DMAC_CH2_W(DMAC_OFF_BTC) = (uint16_t)chain_entries;
-
-			/* VSync: wait for vblank start before kicking DMA.
-			 * Only waits for the rising edge (not full cycle),
-			 * so cost is minimal if rendering already filled
-			 * most of the frame. */
-			{
-				extern int use_vsync;
-				if (use_vsync) {
-					while (!(*mfp_gpip & 0x40)) ;
-				}
-			}
-
-			DMAC_CH2_B(DMAC_OFF_CCR) = DMAC_CCR_START_NOINT;
-			csr_after_str = DMAC_CH2_B(DMAC_OFF_CSR);
-
-			if (g_dma_diag_count < 20)
-			{
-				dlog("DMA async: DCR=$%02x OCR=$%02x entries=%d"
-				     " CSR=$%02x ACT=%d abort_wait=%d",
-				     (unsigned)DMAC_CH2_B(DMAC_OFF_DCR),
-				     (unsigned)DMAC_CH2_B(DMAC_OFF_OCR),
-				     chain_entries,
-				     (unsigned)csr_after_str,
-				     !!(csr_after_str & DMAC_CSR_ACT),
-				     abort_wait);
-				g_dma_diag_count++;
-			}
-
-			if (csr_after_str & DMAC_CSR_ACT)
-			{
-				/* DMA started -- return and let it run concurrently.
-				 * Next frame's STEP 1 will confirm completion via
-				 * BTC_rem == 0. */
-	#ifdef DOOM_LOG
-				g_perf_blit_tics += I_GetTimeCs() - t_blit;
-				g_perf_blit_us += I_GetTimeUs() - _us_blit;
-#endif
-				st_needs_blit = 0;
-				g_dma_active = 1;
-				return;
-			}
-
-			/* DMA didn't start (ACT=0). */
-			dlog("DMA async: DMA didn't start (ACT=0 after STR) --"
-			     " disabling DMA");
-			g_dma_working = 0;
-		}
-
-		/* DMA failed -- synchronous CPU fallback for this frame. */
-		{
-			extern void I_BlitBlock(const byte *src, short *dst,
-			                        int rows, const unsigned short *remap);
-			I_BlitBlock(screens[0], gvram0, blit_rows, pixel_remap16);
-#ifdef DOOM_LOG
-			g_perf_blit_tics += I_GetTimeCs() - t_blit;
-			g_perf_blit_us += I_GetTimeUs() - _us_blit;
-#endif
-			st_needs_blit = 0;
-		}
 	}
 }
 
@@ -1466,54 +1183,6 @@ void I_InitGraphics(void)
 	/* Apply CRTC registers for selected video mode (15kHz or 25kHz).
 	 * pixel_remap16 already built by I_InitPixelRemap16() called earlier. */
 	I_ApplyVideoMode();
-
-	/* ---------------------------------------------------------------
-	 * Allocate async-DMA staging buffer and build the chain table.
-	 * (DMA is currently disabled; this is retained for future TS-6BGA work.)
-	 *
-	 * screens_expanded: compact 16-bit buffer, SCREENHEIGHT rows of
-	 *   SCREENWIDTH words each (stride = SCREENWIDTH * 2 bytes).
-	 *   Allocated from local RAM (fast bus) via calloc.
-	 *
-	 * blit_chain[]: DMA_CHAIN_ENTRIES = SCREENHEIGHT * 2 entries.
-	 *   Entry 2y   : src = screens_expanded row y, mtc = SCREENWIDTH words
-	 *   Entry 2y+1 : src = zero_pad, mtc = GVRAM_FILLER_WORDS words
-	 *     After both entries DAR has advanced 2*SCREENWIDTH + 2*GVRAM_FILLER_WORDS
-	 *     = 2*(320 + 192) = 2*512 = 1024 bytes = GVRAM_ROW_STRIDE. OK
-	 *
-	 * zero_pad: static 192-word zero buffer, shared by all filler entries.
-	 *   Already zero-initialised by the BSS segment.
-	 * --------------------------------------------------------------- */
-	screens_expanded = (unsigned short *)calloc(SCREENWIDTH * SCREENHEIGHT,
-	                                            sizeof(unsigned short));
-	if (!screens_expanded)
-		I_Error("I_InitGraphics: cannot allocate %d bytes for screens_expanded",
-		        SCREENWIDTH * SCREENHEIGHT * (int)sizeof(unsigned short));
-	I_RegisterAlloc(screens_expanded);
-
-	{
-		int y;
-		for (y = 0; y < SCREENHEIGHT; y++)
-		{
-			/* Game-pixel entry: 320 words from row y of screens_expanded. */
-			blit_chain[2 * y].mar = (uint32_t)(uintptr_t)
-			                        (screens_expanded + y * SCREENWIDTH);
-			blit_chain[2 * y].mtc = (uint16_t)SCREENWIDTH;
-
-			/* Filler entry: 192 zero-words to advance DAR to the next
-			 * GVRAM row start (1024 - 640 = 384 bytes = 192 words). */
-			blit_chain[2 * y + 1].mar = (uint32_t)(uintptr_t)zero_pad;
-			blit_chain[2 * y + 1].mtc = (uint16_t)GVRAM_FILLER_WORDS;
-		}
-	}
-
-	dlog("DMA buffers: expanded=%p chain=%p zero_pad=%p",
-	     (void *)screens_expanded, (void *)blit_chain, (void *)zero_pad);
-	dlog("DMA chain: %d entries, filler_words=%d, row_stride=%d",
-	     DMA_CHAIN_ENTRIES, GVRAM_FILLER_WORDS, GVRAM_ROW_STRIDE);
-
-	/* Initialise static DMAC channel 2 registers. */
-	I_DMAInit();
 
 	dlog("VID: vidcon_r1 write");
 	/* text, graphics, bg/sprite,

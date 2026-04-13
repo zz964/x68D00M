@@ -1,0 +1,218 @@
+# Makefile for x68D00M using elf2x68k cross-compiler
+#
+# Usage:
+#   make -f makefile.elf2x68k              -> doom060.x (68060)
+#   make -f makefile.elf2x68k TARGET=030   -> doom.x    (68030)
+#
+# Requires elf2x68k toolchain installed at ELF2X68K_DIR.
+# Default: c:/Doom_Source/m68k-xelf
+
+ELF2X68K_DIR ?= c:/Doom_Source/m68k-xelf
+
+.SUFFIXES:
+
+# TARGET: 060 (default) or 030.
+TARGET ?= 060
+
+ifeq ($(TARGET),030)
+  CPU = 68030
+else
+  CPU = 68060
+endif
+
+# Work around permission issues with temp files on some Windows setups
+export TMPDIR := c:/temp
+export TMP := c:/temp
+export TEMP := c:/temp
+# Ensure MSYS2 Python is found before Windows Python manager
+export PATH := c:/msys64/mingw64/bin:$(PATH)
+
+CC = $(ELF2X68K_DIR)/bin/m68k-xelf-gcc.exe
+
+ifeq ($(TARGET),030)
+  EXECUTABLE = doom.x
+else
+  EXECUTABLE = doom060.x
+endif
+
+# Use XC library specs for IOCS/DOS compatibility.
+# The specs file adds -fcall-used-d2 -fcall-used-a2 -fexec-charset=cp932
+# automatically, but we add them explicitly for clarity.
+CFLAGS = \
+	-specs=xc.specs \
+	-mcpu=$(CPU) \
+	-O2 -g \
+	-Dhuman68k \
+	-D__BIG_ENDIAN__ \
+	-DBIG_ENDIAN=4321 \
+	-DBYTE_ORDER=BIG_ENDIAN \
+	-Wno-builtin-declaration-mismatch \
+	-Wno-implicit-function-declaration \
+	-Wno-implicit-int \
+	-fcommon \
+	-fno-strict-aliasing \
+	-fcall-used-d2 -fcall-used-a2 \
+	-fexec-charset=cp932 \
+	-isystem $(ELF2X68K_DIR)/lib/gcc/m68k-elf/13.4.0/include \
+	-isystem $(ELF2X68K_DIR)/m68k-elf/include \
+	-fomit-frame-pointer \
+	-msoft-float
+
+# Assembly flags: same CPU, no register prefix (bare d0/a0 style)
+ASFLAGS = \
+	-specs=xc.specs \
+	-mcpu=$(CPU) \
+	-msoft-float \
+	-Wa,--register-prefix-optional
+
+# Linker flags: XC libs are handled by specs, just add our extras
+LDFLAGS = \
+	-specs=xc.specs \
+	-mcpu=$(CPU) \
+	-msoft-float
+
+ifneq ($(TARGET),030)
+LDFLAGS += -Wl,--defsym,_FM_INV65536=FM_INV65536
+endif
+
+INTERMEDIATE_DIR = _build_elf/m$(CPU)
+
+C_SRCS = \
+	am_map.c \
+	m_fixed.c \
+	crtc.c \
+	doomdef.c \
+	doomstat.c \
+	dstrings.c \
+	d_items.c \
+	d_main.c \
+	d_net.c \
+	f_finale.c \
+	f_wipe.c \
+	g_game.c \
+	hu_lib.c \
+	hu_stuff.c \
+	info.c \
+	irq.c \
+	i_main.c \
+	i_net.c \
+	i_sound.c \
+	i_system.c \
+	i_video.c \
+	missing.c \
+	mfp.c \
+	m_argv.c \
+	m_bbox.c \
+	m_cheat.c \
+	m_menu.c \
+	m_misc.c \
+	m_random.c \
+	m_swap.c \
+	p_ceilng.c \
+	p_doors.c \
+	p_enemy.c \
+	p_floor.c \
+	p_inter.c \
+	p_lights.c \
+	p_map.c \
+	p_maputl.c \
+	p_mobj.c \
+	p_plats.c \
+	p_pspr.c \
+	p_saveg.c \
+	p_setup.c \
+	p_sight.c \
+	p_spec.c \
+	p_switch.c \
+	p_telept.c \
+	p_tick.c \
+	p_user.c \
+	r_bsp.c \
+	r_data.c \
+	r_draw.c \
+	r_main.c \
+	r_plane.c \
+	r_segs.c \
+	r_sky.c \
+	r_things.c \
+	serial.c \
+	sounds.c \
+	s_sound.c \
+	st_lib.c \
+	st_stuff.c \
+	tables.c \
+	tvram.c \
+	vc.c \
+	v_video.c \
+	w_wad.c \
+	wi_stuff.c \
+	z_zone.c \
+	doom_log.c \
+	doom_perf.c \
+	i_prof_timer.c \
+	adpcm_enc.c \
+	opm_music.c \
+	midi_out.c \
+	mus_player.c
+
+ASM_SRCS = r_draw_asm.S
+
+CFLAGS += -DHAVE_ASM_RDRAW
+
+ifeq ($(TARGET),030)
+  CFLAGS += -DTARGET_68030
+else
+  CFLAGS += -DTARGET_68060
+  CFLAGS += -DHAVE_ASM_PLANES
+endif
+
+# CFLAGS += -DDOOM_LOG
+CFLAGS += -DOPM_NO_FILE_LOADER
+# elf2x68k uses ELF symbols without underscore prefix.
+CFLAGS += -DASM_SYM_FM_INV65536='"FM_INV65536"'
+
+OBJS = \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.o,$(C_SRCS))) \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.S,%.o,$(ASM_SRCS)))
+
+DEPS = $(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.d,$(C_SRCS)))
+
+all : $(EXECUTABLE)
+
+-include $(DEPS)
+
+clean :
+	rm -f $(EXECUTABLE)
+	rm -rf $(INTERMEDIATE_DIR)
+
+# Link: elf2x68k handles ELF -> .x conversion automatically via ld.x
+$(EXECUTABLE) : $(OBJS)
+	$(CC) $(LDFLAGS) -o $(EXECUTABLE) $(OBJS) -lbas -liocs -ldos
+
+# C sources: compile directly to object files (no GAS2HAS, no HAS060)
+$(INTERMEDIATE_DIR)/%.o : %.c makefile.elf2x68k
+	mkdir -p $(dir $@)
+	$(CC) -c $(CFLAGS) -o $@ \
+		-MT $@ -MD -MP -MF $(INTERMEDIATE_DIR)/$*.d $<
+
+# Assembly sources: convert HAS syntax to GAS, then assemble.
+# - 'equ' -> '.equ' with comma
+# - Remove .cpu directive (CPU set via -mcpu= flag)
+# - Remove .include for doscall/iocscall (not used, not available in GAS)
+# - For 030: patch TARGET_68060 and HAVE_ASM_PLANES to 0
+ifeq ($(TARGET),030)
+ASM_SED_EXTRA = -e 's/^\.equ TARGET_68060,.*/.equ TARGET_68060, 0/' -e 's/^\.equ HAVE_ASM_PLANES,.*/.equ HAVE_ASM_PLANES, 0/'
+else
+ASM_SED_EXTRA =
+endif
+
+$(INTERMEDIATE_DIR)/%.o : %.S makefile.elf2x68k
+	mkdir -p $(dir $@)
+	sed -e 's/^\([A-Za-z_][A-Za-z_0-9]*\)[[:space:]]*equ[[:space:]]*\(.*\)/.equ \1, \2/' \
+	    -e '/^[[:space:]]*\.cpu/d' \
+	    -e '/^[[:space:]]*\.include.*doscall/d' \
+	    -e '/^[[:space:]]*\.include.*iocscall/d' \
+	    -e '/^[[:space:]]*[*]/!s/[[:space:]][[:space:]]*[*][[:space:]]/ | /' \
+	    $(ASM_SED_EXTRA) \
+	    $< | c:/msys64/mingw64/bin/python3.exe strip_underscore.py > $(INTERMEDIATE_DIR)/$*_gas.S
+	$(CC) -c $(ASFLAGS) -o $@ $(INTERMEDIATE_DIR)/$*_gas.S
