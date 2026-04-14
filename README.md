@@ -25,6 +25,8 @@ You need one of:
 - An X68030 (Kindof playable-ish at min screen size + low detail)
 - A very fast CPU accelerator card (060turbo, PhantomX, etc.)
 
+You also need more than 8MB of ram.  I'm not sure exactly how much.  I run it on 12MB systems.
+
 Two binaries are provided:  
   doom.x      68030 build (X68030, Xellent30, PhantomX)  
   doom060.x   68060 build (060turbo, PhantomX 060 mode, xm6g)
