@@ -313,8 +313,8 @@ make -f makefile.elf2x68k ELF2X68K_DIR=/path/to/m68k-xelf
 
 Executables are created in the source directory:
 
-- `doom.x` -- 68030 build (default for most users)
-- `doom060.x` -- 68060 build (060turbo, real 68060 hardware)
+- `doom.x` -- 68030 build (x68030, PhantomX)
+- `doom060.x` -- 68060 build (060turbo, xm6g in 68060 mode)
 
 ### Legacy xdev68k build
 
