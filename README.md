@@ -152,16 +152,16 @@ Three music modes are available from the Sound menu.  The FM modes aren't very g
 
 ## Performance
 
-Expected frame rates at E1M1 start position:
+Expected frame rates at E1M1 start position, with delta blit disabled:
 
 
 | Hardware                                                   | Detail | Size | FPS       |
 | ---------------------------------------------------------- | ------ | ---- | --------- |
-| 060turbo (50 MHz)                                          | High   | Full | 15        |
+| 060turbo w/060loadhigh (50 MHz)                            | High   | Full | 17        |
 | PhantomX on XVI 16mhz, 060 mode (RPi 4B).                  | High   | Full | 16        |
 | PhantomX on XVI 16mhz, 030 mode (RPi 4B).                  | High   | Full | 20-22     |
 | X68030 (25 MHz)                                            | Low    | Min  | ~18       |
-| XM6g emulator (68060 50 MHz, 2x mult)                      | High   | Full | 26        |
+| XM6g emulator w/060loadhigh (68060 50 MHz, 2x mult)        | High   | Full | 30        |
 | XM6g emulator (68060 200 MHz, 4x mult)                     | High   | Full | 35 locked |
 
 
