@@ -123,6 +123,42 @@ static void *himem_malloc(long size)
 
 #endif /* human68k */
 
+/* Allocate from system RAM only, even when the program is loaded
+ * into HIMEM via 060loadhigh.  Required for DMA-accessible buffers
+ * (ADPCM playback, etc.) since the HD63450 DMAC cannot access
+ * 060turbo local RAM.
+ *
+ * Uses DOS _MALLOC directly to bypass the C library heap (which
+ * resides in the program's memory block, potentially in HIMEM). */
+void *I_SysRamMalloc(int size)
+{
+#if defined(human68k)
+	void *p = malloc(size);
+	/* Check if the allocation landed in HIMEM (>= $01000000).
+	 * If so, free it and use DOS _MALLOC which allocates from
+	 * the system memory pool (always in system RAM). */
+	if (p && (unsigned long)p >= 0x01000000) {
+		free(p);
+		/* DOS _MALLOC: allocate from system memory pool */
+		register long d0 __asm__("d0");
+		__asm__ volatile (
+			"move.l %1,%%sp@-\n\t"
+			".short 0xFF48\n\t"    /* DOS _MALLOC */
+			"addq.l #4,%%sp"
+			: "=d"(d0)
+			: "r"((long)size)
+			: "a0", "a1", "cc"
+		);
+		if (d0 >= 0)
+			return (void *)d0;
+		return NULL;
+	}
+	return p;
+#else
+	return malloc(size);
+#endif
+}
+
 /* Allocate from 060turbo local RAM on human68k; falls back to malloc elsewhere.
  * Use for hot renderer tables to avoid system-bus latency on every lookup. */
 void *I_HimemMalloc(int size)

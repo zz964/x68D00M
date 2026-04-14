@@ -34,15 +34,29 @@ on the original Doom source code released under the GNU GPL v2.
 
 ## Quick Start
 
-1. IF you are using an 060turbo or xm6g in 060 mode, you need to set up the 060turbo.sys driver correctly. See below.
-  Note that if you're using a PhantomX, you're better off in 030 mode.  Also see below.
+1. IF you are using an 060turbo or xm6g in 060 mode, you need to set up the 060turbo.sys 
+  driver correctly. See below.  Note that if you're using a PhantomX, you're better off in 030 mode.  
+  Also see below.
 2. Make sure hiocs.x is running, as well as cache.x ON.  I run these from autoexec.bat
 3. Copy doom.x (or doom060.x) and your WAD file to the same directory on your Sharp x68000.
-4. (Optional) If you want more than one sound effect to be playable at a time, run pcm8a, or if you have a Mercury Unit, run pcm8pp.
+4. (Optional) If you want more than one sound effect to be playable at a time, run pcm8a, or if you 
+  have a Mercury Unit, run pcm8pp.
 5. From the Human68k command line:
   doom.x  
    Or with a specific IWAD:  
      doom.x -iwad tnt.wad
+
+**060turbo users:** For a significant performance boost (~27%), launch
+the 68060 build with `060loadhigh`:
+
+    060loadhigh -s doom060.x
+
+This loads the program into 060turbo local RAM.  If `060loadhigh -s`
+fails with "can not run the file", make sure you are using an 
+**unmodified Human68k 3.02 human.sys**. Some modified versions of 
+human.sys (such as 3.P7) can break 060turbo.sys's extended memory 
+support.  I think simple translation patches are possibly ok.
+060loadhigh.x is included with the 060turbo.sys driver package.
 
 ## Features
 
@@ -58,7 +72,8 @@ In XM6g 68060 50mhz mode, I was able to get the 11fps from the original port up 
 - Inline FPU in plane renderer and wall texture loop (68060)
 - 16-bit pre-remapped framebuffer (screens16) eliminates per-pixel palette lookup during blit
 - Minimal blit: smaller viewports blit fewer rows, low detail skips columns, status bar only reblits on change
-- 060turbo HIMEM support for zone heap, framebuffers, and lookup tables
+- Delta blit: compare each pixel against a shadow buffer and skip unchanged GVRAM writes (togglable, default on)
+- 060turbo HIMEM support for zone heap, framebuffers, and lookup tables even without 060loadhigh.
 - A few other things I forgot.
 
 ### Video
@@ -67,6 +82,7 @@ In XM6g 68060 50mhz mode, I was able to get the 11fps from the original port up 
 - Double-buffered vsync with GVRAM scroll register flipping. (Costs FPS.  Don't use this unless you have a very powerful setup and can't stand even a little bit of tearing.)
 - FPS counter with vsync indicator (V suffix)
 - Working Low detail rendering mode
+- Crosshair with autoaim target highlight (gray when idle, green when aimed at a monster)
 
 ### Sound Effects
 

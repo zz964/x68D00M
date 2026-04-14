@@ -294,7 +294,7 @@ static void convert_sfx_adpcm(int sfxid)
     adpcm_size = (resampled_count + 1) / 2;
 
     for (lv = 0; lv < SFX_VOL_LEVELS; lv++) {
-        sfx_adpcm[sfxid][lv] = (uint8_t *)malloc(adpcm_size);
+        sfx_adpcm[sfxid][lv] = (uint8_t *)I_SysRamMalloc(adpcm_size);
         if (!sfx_adpcm[sfxid][lv]) continue;
 
         if (sfx_vol_scale[lv] == 100) {
@@ -447,7 +447,7 @@ static int sfx_cache_load(void)
                 if (fread(&lvlen, 4, 1, fp) != 1) goto fail;
                 if (lvlen < 0 || lvlen > 256 * 1024) goto fail;
                 if (lvlen > 0) {
-                    sfx_adpcm[i][lv] = (uint8_t *)malloc(lvlen);
+                    sfx_adpcm[i][lv] = (uint8_t *)I_SysRamMalloc(lvlen);
                     if (!sfx_adpcm[i][lv]) goto fail;
                     if (fread(sfx_adpcm[i][lv], 1, lvlen, fp) != (size_t)lvlen)
                         goto fail;

@@ -61,6 +61,10 @@ void I_LogTableLocations (void);
  * Returns NULL on failure. Use for hot renderer tables. */
 void *I_HimemMalloc (int size);
 
+/* Allocate from system RAM only, bypassing HIMEM.
+ * Use for DMA-accessible buffers (ADPCM, etc.). */
+void *I_SysRamMalloc (int size);
+
 
 
 /* */
